@@ -1,0 +1,18 @@
+{
+  "name": "一箭又一箭 · 纯净定制版",
+  "short_name": "一箭又一箭",
+  "description": "无广告、不限时、带三星挑战与重排提示的贪吃蛇箭头消除益智游戏",
+  "start_url": "./index.html",
+  "display": "fullscreen",
+  "orientation": "portrait",
+  "background_color": "#2b3244",
+  "theme_color": "#2b3244",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

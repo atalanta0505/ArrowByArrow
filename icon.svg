@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#2b3244"/>
+  <!-- Grid dots -->
+  <g fill="#505a74">
+    <circle cx="128" cy="128" r="10"/>
+    <circle cx="256" cy="128" r="10"/>
+    <circle cx="384" cy="128" r="10"/>
+    <circle cx="128" cy="256" r="10"/>
+    <circle cx="256" cy="256" r="10"/>
+    <circle cx="384" cy="256" r="10"/>
+    <circle cx="128" cy="384" r="10"/>
+    <circle cx="256" cy="384" r="10"/>
+    <circle cx="384" cy="384" r="10"/>
+  </g>
+  <!-- Snake Arrow 1 (Coral Pink) -->
+  <path d="M128 384 V256 H256 V128 H344" fill="none" stroke="#f08cae" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
+  <polygon points="412,128 332,84 332,172" fill="#f08cae"/>
+  <!-- Snake Arrow 2 (Mint Teal) -->
+  <path d="M384 256 V384 H232" fill="none" stroke="#5ec7b8" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
+  <polygon points="168,384 248,340 248,428" fill="#5ec7b8"/>
+  <!-- Snake Arrow 3 (Amber Yellow) -->
+  <path d="M128 192 V128 H200" fill="none" stroke="#f2c94c" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
+  <polygon points="256,128 188,88 188,168" fill="#f2c94c"/>
+</svg>

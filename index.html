@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#2b3244" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="一箭又一箭" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <title>一箭又一箭 · 纯净定制版</title>
+    <link rel="manifest" href="./manifest.json" />
+    <link rel="stylesheet" href="./src/ui/styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <!-- ================================================================
+           1. TOP ACTION BAR (Mahjong Titan Screenshot 5 Style)
+           ================================================================ -->
+      <header class="mt-topbar">
+        <button id="btnHint" class="mt-nav-btn" title="提示下一条可移除的箭头">
+          <svg viewBox="0 0 24 24">
+            <path
+              d="M9 21c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-1H9v1zm3-19C8.14 2 5 5.14 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.86-3.14-7-7-7z"
+            />
+          </svg>
+          <span>提示 (Hint)</span>
+        </button>
+
+        <button id="btnShuffle" class="mt-nav-btn" title="重新排列画面剩余未消除的箭头">
+          <svg viewBox="0 0 24 24">
+            <path
+              d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"
+            />
+          </svg>
+          <span>重排 (Shuffle)</span>
+        </button>
+
+        <button id="btnRestart" class="mt-nav-btn" title="重新开始本局">
+          <svg viewBox="0 0 24 24">
+            <path
+              d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"
+            />
+          </svg>
+          <span>重开 (Restart)</span>
+        </button>
+
+        <button id="btnOpenBoards" class="mt-nav-btn" title="打开关卡选择列表">
+          <svg viewBox="0 0 24 24">
+            <path
+              d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"
+            />
+          </svg>
+          <span>关卡 (Boards)</span>
+        </button>
+      </header>
+
+      <!-- ================================================================
+           2. SUBHEADER BAR (《一箭又一箭》 Theme Switch + Timer + Live Stars)
+           ================================================================ -->
+      <section class="game-subheader">
+        <div class="subheader-left">
+          <button id="btnSettingsQuick" class="icon-square-btn" title="设置选项">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+              <path
+                d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"
+              />
+            </svg>
+          </button>
+
+          <button id="btnThemeToggle" class="theme-pill" title="切换日间/夜间配色">
+            <span id="themeKnobIcon" class="theme-pill-knob">🌙</span>
+          </button>
+        </div>
+
+        <div class="subheader-center">
+          <div class="level-title-row">
+            <span id="levelTitleText">关卡 1</span>
+            <span class="live-stars-mini" title="本局可获星星实时状态：未重排 / 未用提示 / 预计时间内">
+              <span id="liveStarShuffle" class="live-star-dot eligible">★</span>
+              <span id="liveStarHint" class="live-star-dot eligible">★</span>
+              <span id="liveStarTime" class="live-star-dot eligible">★</span>
+            </span>
+          </div>
+          <div class="timer-row">
+            <span>⏱</span>
+            <span id="timerText">00:00</span>
+            <span id="expectedTimeText" class="timer-expected">/ 预计 01:30</span>
+          </div>
+        </div>
+
+        <div class="subheader-right">
+          <span id="remainBadge" class="remain-badge" title="剩余箭头 / 总箭头数">15 / 15</span>
+          <button id="btnFullscreen" class="icon-square-btn" title="全屏模式">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+              <path
+                d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"
+              />
+            </svg>
+          </button>
+        </div>
+      </section>
+
+      <!-- ================================================================
+           3. MAIN INTERACTIVE BOARD CANVAS
+           ================================================================ -->
+      <main class="canvas-stage">
+        <div id="statusToast" class="status-toast">提示信息</div>
+        <canvas id="boardCanvas"></canvas>
+      </main>
+
+      <!-- ================================================================
+           4. BOTTOM CONTROL BAR (《一箭又一箭》 Screenshot 1 & 2 Style)
+           ================================================================ -->
+      <footer class="bottom-bar">
+        <button id="btnBottomHint" class="round-tool-btn">
+          <div class="round-tool-circle" style="color: #ffd43b; border-color: rgba(255,212,59,0.5);">
+            💡
+          </div>
+          <span>提示</span>
+        </button>
+
+        <div class="zoom-pill-bar">
+          <button id="btnZoomOut" class="zoom-step-btn" title="缩小">−</button>
+          <input
+            id="zoomSlider"
+            type="range"
+            min="0.85"
+            max="4.0"
+            step="0.05"
+            value="1.0"
+            class="zoom-slider"
+          />
+          <button id="btnZoomIn" class="zoom-step-btn" title="放大">+</button>
+        </div>
+
+        <button id="btnGuideLines" class="round-tool-btn">
+          <div class="round-tool-circle">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+              <path
+                d="M20 10V8h-4V4h-2v4h-4V4H8v4H4v2h4v4H4v2h4v4h2v-4h4v4h2v-4h4v-2h-4v-4h4zm-6 4h-4v-4h4v4z"
+              />
+            </svg>
+          </div>
+          <span>辅助线</span>
+        </button>
+      </footer>
+
+      <!-- ================================================================
+           5. BOARDS / GOALS / OPTIONS OVERLAY (Mahjong Titan Screenshot 3)
+           ================================================================ -->
+      <section id="overlayPanel" class="overlay-panel hidden">
+        <header class="mt-topbar">
+          <button id="btnOverlayClose" class="mt-nav-btn">
+            <svg viewBox="0 0 24 24">
+              <path
+                d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 11.59L15.59 15 12 11.41 8.41 15 7 13.59 12 8.59l5 5z"
+              />
+            </svg>
+            <span>返回 (Close)</span>
+          </button>
+
+          <button id="btnOverlayBoards" class="mt-nav-btn active-tab">
+            <svg viewBox="0 0 24 24">
+              <path
+                d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"
+              />
+            </svg>
+            <span>关卡 (Boards)</span>
+          </button>
+
+          <button id="btnOverlayGoals" class="mt-nav-btn">
+            <svg viewBox="0 0 24 24">
+              <path
+                d="M19 5h-2V3H7v2H5c-1.1 0-2 .9-2 2v1c0 2.55 1.92 4.63 4.39 4.94.63 1.5 1.98 2.63 3.61 2.96V19H7v2h10v-2h-4v-3.1c1.63-.33 2.98-1.46 3.61-2.96C19.08 12.63 21 10.55 21 8V7c0-1.1-.9-2-2-2zM5 8V7h2v3.82C5.84 10.4 5 9.3 5 8zm14 0c0 1.3-.84 2.4-2 2.82V7h2v1z"
+              />
+            </svg>
+            <span>成就 (Goals)</span>
+          </button>
+
+          <button id="btnOverlayOptions" class="mt-nav-btn">
+            <svg viewBox="0 0 24 24">
+              <path
+                d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"
+              />
+            </svg>
+            <span>设置 (Options)</span>
+          </button>
+        </header>
+
+        <!-- TAB 1: BOARDS LIST -->
+        <div
+          id="tabViewBoards"
+          style="display: flex; flex-direction: column; flex: 1; overflow: hidden;"
+        >
+          <div class="boards-filter-bar">
+            <button class="filter-tab-btn active" data-filter="all">全部 (All)</button>
+            <button class="filter-tab-btn" data-filter="finished">已完成 (Finished)</button>
+            <button class="filter-tab-btn" data-filter="unfinished">未完成 (Unfinished)</button>
+          </div>
+          <div class="boards-summary-strip">
+            <span id="boardsSummaryText">已完成 0 / 100 关</span>
+            <div id="boardsTotalStars" class="total-stars-pill">0 <span>★</span></div>
+          </div>
+          <div id="boardsListContainer" class="boards-list-scroll"></div>
+        </div>
+
+        <!-- TAB 2: GOALS -->
+        <div
+          id="tabViewGoals"
+          style="display: none; flex-direction: column; flex: 1; overflow: hidden;"
+        >
+          <div id="goalsContentContainer" class="settings-content"></div>
+        </div>
+
+        <!-- TAB 3: OPTIONS -->
+        <div
+          id="tabViewOptions"
+          style="display: none; flex-direction: column; flex: 1; overflow: hidden;"
+        >
+          <div id="optionsContentContainer" class="settings-content"></div>
+        </div>
+      </section>
+
+      <!-- ================================================================
+           6. VICTORY MODAL WITH 3-STAR SLAM ANIMATION (Screenshot 4 Style)
+           ================================================================ -->
+      <section id="victoryModal" class="victory-backdrop hidden">
+        <div class="victory-top-stats">
+          <span id="vicTimeText">00:39</span>
+          <div class="total-stars-pill" style="font-size: 18px; padding: 4px 12px;">
+            <span id="vicTotalStarsText" style="color: #fff;">3</span>
+            <span>★</span>
+          </div>
+        </div>
+
+        <div class="victory-card">
+          <div class="victory-stars-grid">
+            <!-- Star 1: No Shuffle -->
+            <div class="victory-star-col">
+              <div id="vicStarSlot0" class="star-slot-wrap"></div>
+              <div class="star-cond-label">
+                未重排<br />
+                <span class="star-cond-sub">No Shuffle</span>
+              </div>
+            </div>
+
+            <!-- Star 2: No Hint -->
+            <div class="victory-star-col">
+              <div id="vicStarSlot1" class="star-slot-wrap"></div>
+              <div class="star-cond-label">
+                不用提示<br />
+                <span class="star-cond-sub">No Hint</span>
+              </div>
+            </div>
+
+            <!-- Star 3: Within Expected Time -->
+            <div class="victory-star-col">
+              <div id="vicStarSlot2" class="star-slot-wrap"></div>
+              <div class="star-cond-label">
+                预计时间内<br />
+                <span id="vicExpectedLabel" class="star-cond-sub">⏱ 02:00</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="victory-btn-row">
+            <button id="btnVicBoards" class="mt-gold-btn">Boards</button>
+            <button id="btnVicRestart" class="mt-gold-btn">Restart</button>
+            <button id="btnVicNext" class="mt-gold-btn">Next</button>
+          </div>
+        </div>
+
+        <div class="victory-goal-banner">
+          <div style="width: 28px; height: 28px; flex-shrink: 0;">
+            <svg viewBox="0 0 100 100">
+              <polygon
+                points="50,5 63,35 95,38 70,59 78,91 50,73 22,91 30,59 5,38 37,35"
+                fill="#ffd43b"
+                stroke="#b46900"
+                stroke-width="4"
+              />
+            </svg>
+          </div>
+          <span id="vicBannerText">恭喜完成本局挑战！</span>
+        </div>
+      </section>
+    </div>
+
+    <script type="module" src="./src/ui/app.js"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('./sw.js').catch(() => {});
+        });
+      }
+    </script>
+  </body>
+</html>

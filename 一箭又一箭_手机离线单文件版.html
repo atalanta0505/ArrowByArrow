@@ -1,0 +1,4164 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#2b3244" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="一箭又一箭" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <title>一箭又一箭 · 纯净定制版</title>
+    
+    <style>
+/* ==========================================================================
+   《一箭又一箭》 纯净定制版 (Arrow by Arrow - Custom Edition)
+   Combines Mahjong Titan's classic Top Toolbar, Boards List & 3-Star Modal
+   with 《一箭又一箭》's Deep Slate Aesthetic, Day/Night Switch & Zoom Controls
+   ========================================================================== */
+
+:root {
+  --bg-dark: #2b3244;
+  --bg-darker: #1d222f;
+  --bg-light: #eef2f9;
+  --toolbar-bg: #22252a;
+  --toolbar-border: #3a3f48;
+  --card-bg: rgba(30, 34, 42, 0.96);
+  --accent-red: #c92a2a;
+  --gold-top: #ffe659;
+  --gold-mid: #f7b500;
+  --gold-bot: #d48800;
+  --text-main: #f3f6fc;
+  --text-muted: #9aa5b8;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background-color: #12151e;
+  color: var(--text-main);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  touch-action: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#app {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg-dark);
+}
+
+/* On desktop/landscape screens, lock #app to 9:16 portrait mobile aspect ratio */
+@media (min-aspect-ratio: 10/15) {
+  #app {
+    height: 100vh;
+    width: calc(100vh * 9 / 16);
+    max-width: 100vw;
+    box-shadow: 0 0 48px rgba(0, 0, 0, 0.75);
+    border-left: 1px solid rgba(255, 255, 255, 0.08);
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+  }
+}
+
+#app.theme-light {
+  background: var(--bg-light);
+  color: #242b3a;
+}
+
+/* ==========================================================================
+   1. TOP NAVIGATION / ACTION TOOLBAR (Mahjong Titan Screenshot 3 & 5 Style)
+   ========================================================================== */
+
+.mt-topbar {
+  padding-top: var(--safe-top);
+  height: calc(56px + var(--safe-top));
+  background: linear-gradient(180deg, #32363e 0%, #1c1e22 100%);
+  border-bottom: 1px solid #454a54;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  z-index: 30;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+.mt-nav-btn {
+  background: transparent;
+  border: none;
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  color: #f0f3f8;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  transition: background 0.15s, transform 0.1s;
+}
+
+.mt-nav-btn:last-child {
+  border-right: none;
+}
+
+.mt-nav-btn:active {
+  background: rgba(255, 255, 255, 0.12);
+  transform: scale(0.96);
+}
+
+.mt-nav-btn.active-tab {
+  color: #ff4d4d;
+  background: rgba(255, 77, 77, 0.08);
+}
+
+.mt-nav-btn svg {
+  width: 22px;
+  height: 22px;
+  fill: currentColor;
+}
+
+/* ==========================================================================
+   2. IN-GAME STATUS SUBHEADER (《一箭又一箭》 + Expected Time + Live Stars)
+   ========================================================================== */
+
+.game-subheader {
+  height: 54px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(34, 40, 56, 0.88);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+  backdrop-filter: blur(8px);
+  z-index: 20;
+  flex-shrink: 0;
+}
+
+#app.theme-light .game-subheader {
+  background: rgba(235, 240, 249, 0.92);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  color: #242b3a;
+}
+
+.subheader-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.icon-square-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  border: 1.5px solid rgba(110, 197, 184, 0.45);
+  background: rgba(43, 50, 68, 0.85);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+#app.theme-light .icon-square-btn {
+  background: #ffffff;
+  color: #2b3244;
+  border-color: rgba(94, 199, 184, 0.65);
+}
+
+/* Day / Night Pill Switch matching Screenshot 1 & 2 */
+.theme-pill {
+  width: 62px;
+  height: 32px;
+  border-radius: 16px;
+  background: #4e6794;
+  border: none;
+  position: relative;
+  cursor: pointer;
+  padding: 3px;
+  display: flex;
+  align-items: center;
+  transition: background 0.25s;
+}
+
+#app.theme-light .theme-pill {
+  background: #87b5f5;
+}
+
+.theme-pill-knob {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #2f3b56;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  transform: translateX(30px);
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.25s;
+}
+
+#app.theme-light .theme-pill-knob {
+  background: #ffffff;
+  transform: translateX(0px);
+}
+
+.subheader-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.15;
+}
+
+.level-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.live-stars-mini {
+  display: inline-flex;
+  gap: 3px;
+}
+
+.live-star-dot {
+  font-size: 14px;
+  color: #5c6475;
+  transition: color 0.25s, transform 0.25s;
+}
+
+.live-star-dot.eligible {
+  color: #ffd43b;
+  text-shadow: 0 0 6px rgba(255, 212, 59, 0.45);
+}
+
+.timer-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: #d9e2f2;
+  margin-top: 2px;
+}
+
+#app.theme-light .timer-row {
+  color: #3b465e;
+}
+
+.timer-expected {
+  font-size: 11px;
+  color: #8fa0be;
+  font-weight: 500;
+}
+
+.timer-overtime {
+  color: #f2c94c;
+}
+
+.subheader-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.remain-badge {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 9px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.09);
+  color: #ced8ea;
+  font-variant-numeric: tabular-nums;
+}
+
+#app.theme-light .remain-badge {
+  background: rgba(43, 50, 68, 0.09);
+  color: #2b3244;
+}
+
+/* ==========================================================================
+   3. CANVAS PLAY AREA & BOTTOM ZOOM BAR (Screenshot 1 & 2 Style)
+   ========================================================================== */
+
+.canvas-stage {
+  position: relative;
+  flex: 1;
+  width: 100%;
+  overflow: hidden;
+}
+
+#boardCanvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+}
+
+/* Subtle non-intrusive toast notification */
+.status-toast {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%) translateY(-10px);
+  background: rgba(22, 26, 36, 0.9);
+  color: #f8fafc;
+  padding: 7px 16px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.22s, transform 0.22s;
+  z-index: 25;
+  white-space: nowrap;
+}
+
+.status-toast.visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.bottom-bar {
+  padding-bottom: var(--safe-bottom);
+  height: calc(64px + var(--safe-bottom));
+  padding-left: 14px;
+  padding-right: 14px;
+  background: rgba(34, 40, 56, 0.92);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  z-index: 20;
+  flex-shrink: 0;
+}
+
+#app.theme-light .bottom-bar {
+  background: rgba(235, 240, 249, 0.94);
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.round-tool-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  background: none;
+  border: none;
+  color: #e2e8f0;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  min-width: 52px;
+}
+
+#app.theme-light .round-tool-btn {
+  color: #2b3244;
+}
+
+.round-tool-circle {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(94, 199, 184, 0.55);
+  background: rgba(43, 50, 68, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #5ec7b8;
+  transition: transform 0.12s, background 0.2s, box-shadow 0.2s;
+}
+
+#app.theme-light .round-tool-circle {
+  background: #ffffff;
+}
+
+.round-tool-btn.active .round-tool-circle {
+  background: rgba(94, 199, 184, 0.22);
+  box-shadow: 0 0 12px rgba(94, 199, 184, 0.45);
+}
+
+.round-tool-btn:active .round-tool-circle {
+  transform: scale(0.92);
+}
+
+/* Zoom Pill Bar in center of bottom toolbar matching Screenshot 1 & 2 */
+.zoom-pill-bar {
+  flex: 1;
+  max-width: 280px;
+  height: 40px;
+  background: rgba(58, 67, 88, 0.72);
+  border-radius: 20px;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#app.theme-light .zoom-pill-bar {
+  background: rgba(195, 206, 226, 0.65);
+}
+
+.zoom-step-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: none;
+  background: #dce4f2;
+  color: #2b3244;
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.zoom-step-btn:active {
+  transform: scale(0.9);
+}
+
+.zoom-slider {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.32);
+  outline: none;
+}
+
+.zoom-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 3px solid #5ec7b8;
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+}
+
+/* ==========================================================================
+   4. BOARDS LIST OVERLAY (Mahjong Titan Screenshot 3 Style)
+   ========================================================================== */
+
+.overlay-panel {
+  position: absolute;
+  inset: 0;
+  background: #1e2024;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  transition: opacity 0.2s, transform 0.2s;
+}
+
+.overlay-panel.hidden {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(10px);
+}
+
+.boards-filter-bar {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  height: 40px;
+  background: #282b30;
+  border-bottom: 1px solid #3c4048;
+  flex-shrink: 0;
+}
+
+.filter-tab-btn {
+  border: none;
+  background: transparent;
+  color: #cfd4de;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border-right: 1px solid #3c4048;
+  transition: background 0.15s, color 0.15s;
+}
+
+.filter-tab-btn:last-child {
+  border-right: none;
+}
+
+.filter-tab-btn.active {
+  background: linear-gradient(180deg, #d63333 0%, #a61e1e 100%);
+  color: #ffffff;
+}
+
+.boards-summary-strip {
+  padding: 8px 16px;
+  background: #23262b;
+  border-bottom: 1px solid #343840;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  color: #aeb6c4;
+}
+
+.total-stars-pill {
+  background: #16181c;
+  border: 1px solid #494e58;
+  padding: 3px 10px;
+  border-radius: 6px;
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.total-stars-pill span {
+  color: #ffd43b;
+}
+
+.boards-list-scroll {
+  flex: 1;
+  overflow-y: auto;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: calc(24px + var(--safe-bottom));
+}
+
+.board-row-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  min-height: 64px;
+  background: #282b30;
+  border-bottom: 2px solid #1b1d21;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.board-row-item:hover,
+.board-row-item:active {
+  background: #343840;
+}
+
+.board-row-item.current-level {
+  border-left: 4px solid #f7b500;
+}
+
+.board-row-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.board-thumb-canvas {
+  width: 50px;
+  height: 50px;
+  border-radius: 4px;
+  background: #3d4047;
+  flex-shrink: 0;
+}
+
+.board-row-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.board-row-number {
+  font-size: 18px;
+  font-weight: 600;
+  color: #f1f5f9;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.board-row-subtitle {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.board-row-stars {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.row-star-icon {
+  width: 24px;
+  height: 24px;
+}
+
+/* ==========================================================================
+   5. VICTORY MODAL & 3-STAR SLAM ANIMATION (Mahjong Titan Screenshot 4 Style)
+   ========================================================================== */
+
+.victory-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 18, 26, 0.78);
+  backdrop-filter: blur(5px);
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  transition: opacity 0.25s;
+}
+
+.victory-backdrop.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.victory-top-stats {
+  position: absolute;
+  top: calc(14px + var(--safe-top));
+  left: 16px;
+  right: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 20px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.victory-card {
+  width: 100%;
+  max-width: 390px;
+  background: rgba(36, 39, 46, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  padding: 28px 18px 22px;
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.65);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+}
+
+.victory-stars-grid {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  text-align: center;
+}
+
+.victory-star-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.star-slot-wrap {
+  position: relative;
+  width: 78px;
+  height: 78px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.star-svg-base {
+  width: 72px;
+  height: 72px;
+  filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.45));
+}
+
+/* Animated golden star that slams in from scale(2.4) like Screenshot 4! */
+.star-svg-lit {
+  position: absolute;
+  width: 72px;
+  height: 72px;
+  opacity: 0;
+  transform: scale(2.45) rotate(-12deg);
+  filter: drop-shadow(0 0 16px rgba(255, 215, 0, 0.75));
+  pointer-events: none;
+}
+
+.star-svg-lit.animate-in {
+  animation: starSlamLight 0.55s cubic-bezier(0.22, 1.28, 0.36, 1) forwards;
+}
+
+@keyframes starSlamLight {
+  0% {
+    opacity: 0;
+    transform: scale(2.5) rotate(-14deg);
+  }
+  45% {
+    opacity: 0.85;
+    transform: scale(1.35) rotate(4deg);
+  }
+  75% {
+    opacity: 1;
+    transform: scale(0.92) rotate(-2deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+.star-cond-label {
+  font-size: 13px;
+  line-height: 1.35;
+  color: #e2e8f0;
+  font-weight: 500;
+}
+
+.star-cond-sub {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+/* Mahjong Titan Glossy Gold Pill Buttons (Screenshot 4) */
+.victory-btn-row {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.mt-gold-btn {
+  height: 44px;
+  border-radius: 22px;
+  border: 1px solid #ffd43b;
+  background: linear-gradient(180deg, #ffe866 0%, #f5b400 55%, #df9400 100%);
+  color: #1a1608;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.7);
+  transition: transform 0.1s, filter 0.15s;
+}
+
+.mt-gold-btn:active {
+  transform: scale(0.95);
+  filter: brightness(0.93);
+}
+
+.victory-goal-banner {
+  margin-top: 16px;
+  width: 100%;
+  max-width: 390px;
+  background: rgba(34, 37, 44, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  color: #f1f5f9;
+}
+
+/* Options / Goals inner container */
+.settings-content {
+  padding: 20px 16px;
+  max-width: 480px;
+  width: 100%;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow-y: auto;
+}
+
+.setting-card {
+  background: #282b30;
+  border: 1px solid #383c44;
+  border-radius: 8px;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.setting-card-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #f1f5f9;
+}
+
+.setting-card-desc {
+  font-size: 12px;
+  color: #94a3b8;
+  margin-top: 3px;
+}
+
+.toggle-btn {
+  padding: 7px 16px;
+  border-radius: 16px;
+  border: none;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  background: #4b5563;
+  color: #ffffff;
+}
+
+.toggle-btn.on {
+  background: #5ec7b8;
+  color: #112220;
+}
+
+</style>
+  </head>
+  <body>
+    <div id="app">
+      <!-- ================================================================
+           1. TOP ACTION BAR (Mahjong Titan Screenshot 5 Style)
+           ================================================================ -->
+      <header class="mt-topbar">
+        <button id="btnHint" class="mt-nav-btn" title="提示下一条可移除的箭头">
+          <svg viewBox="0 0 24 24">
+            <path
+              d="M9 21c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-1H9v1zm3-19C8.14 2 5 5.14 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.86-3.14-7-7-7z"
+            />
+          </svg>
+          <span>提示 (Hint)</span>
+        </button>
+
+        <button id="btnShuffle" class="mt-nav-btn" title="重新排列画面剩余未消除的箭头">
+          <svg viewBox="0 0 24 24">
+            <path
+              d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"
+            />
+          </svg>
+          <span>重排 (Shuffle)</span>
+        </button>
+
+        <button id="btnRestart" class="mt-nav-btn" title="重新开始本局">
+          <svg viewBox="0 0 24 24">
+            <path
+              d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"
+            />
+          </svg>
+          <span>重开 (Restart)</span>
+        </button>
+
+        <button id="btnOpenBoards" class="mt-nav-btn" title="打开关卡选择列表">
+          <svg viewBox="0 0 24 24">
+            <path
+              d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"
+            />
+          </svg>
+          <span>关卡 (Boards)</span>
+        </button>
+      </header>
+
+      <!-- ================================================================
+           2. SUBHEADER BAR (《一箭又一箭》 Theme Switch + Timer + Live Stars)
+           ================================================================ -->
+      <section class="game-subheader">
+        <div class="subheader-left">
+          <button id="btnSettingsQuick" class="icon-square-btn" title="设置选项">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+              <path
+                d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"
+              />
+            </svg>
+          </button>
+
+          <button id="btnThemeToggle" class="theme-pill" title="切换日间/夜间配色">
+            <span id="themeKnobIcon" class="theme-pill-knob">🌙</span>
+          </button>
+        </div>
+
+        <div class="subheader-center">
+          <div class="level-title-row">
+            <span id="levelTitleText">关卡 1</span>
+            <span class="live-stars-mini" title="本局可获星星实时状态：未重排 / 未用提示 / 预计时间内">
+              <span id="liveStarShuffle" class="live-star-dot eligible">★</span>
+              <span id="liveStarHint" class="live-star-dot eligible">★</span>
+              <span id="liveStarTime" class="live-star-dot eligible">★</span>
+            </span>
+          </div>
+          <div class="timer-row">
+            <span>⏱</span>
+            <span id="timerText">00:00</span>
+            <span id="expectedTimeText" class="timer-expected">/ 预计 01:30</span>
+          </div>
+        </div>
+
+        <div class="subheader-right">
+          <span id="remainBadge" class="remain-badge" title="剩余箭头 / 总箭头数">15 / 15</span>
+          <button id="btnFullscreen" class="icon-square-btn" title="全屏模式">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+              <path
+                d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"
+              />
+            </svg>
+          </button>
+        </div>
+      </section>
+
+      <!-- ================================================================
+           3. MAIN INTERACTIVE BOARD CANVAS
+           ================================================================ -->
+      <main class="canvas-stage">
+        <div id="statusToast" class="status-toast">提示信息</div>
+        <canvas id="boardCanvas"></canvas>
+      </main>
+
+      <!-- ================================================================
+           4. BOTTOM CONTROL BAR (《一箭又一箭》 Screenshot 1 & 2 Style)
+           ================================================================ -->
+      <footer class="bottom-bar">
+        <button id="btnBottomHint" class="round-tool-btn">
+          <div class="round-tool-circle" style="color: #ffd43b; border-color: rgba(255,212,59,0.5);">
+            💡
+          </div>
+          <span>提示</span>
+        </button>
+
+        <div class="zoom-pill-bar">
+          <button id="btnZoomOut" class="zoom-step-btn" title="缩小">−</button>
+          <input
+            id="zoomSlider"
+            type="range"
+            min="0.85"
+            max="4.0"
+            step="0.05"
+            value="1.0"
+            class="zoom-slider"
+          />
+          <button id="btnZoomIn" class="zoom-step-btn" title="放大">+</button>
+        </div>
+
+        <button id="btnGuideLines" class="round-tool-btn">
+          <div class="round-tool-circle">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+              <path
+                d="M20 10V8h-4V4h-2v4h-4V4H8v4H4v2h4v4H4v2h4v4h2v-4h4v4h2v-4h4v-2h-4v-4h4zm-6 4h-4v-4h4v4z"
+              />
+            </svg>
+          </div>
+          <span>辅助线</span>
+        </button>
+      </footer>
+
+      <!-- ================================================================
+           5. BOARDS / GOALS / OPTIONS OVERLAY (Mahjong Titan Screenshot 3)
+           ================================================================ -->
+      <section id="overlayPanel" class="overlay-panel hidden">
+        <header class="mt-topbar">
+          <button id="btnOverlayClose" class="mt-nav-btn">
+            <svg viewBox="0 0 24 24">
+              <path
+                d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 11.59L15.59 15 12 11.41 8.41 15 7 13.59 12 8.59l5 5z"
+              />
+            </svg>
+            <span>返回 (Close)</span>
+          </button>
+
+          <button id="btnOverlayBoards" class="mt-nav-btn active-tab">
+            <svg viewBox="0 0 24 24">
+              <path
+                d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"
+              />
+            </svg>
+            <span>关卡 (Boards)</span>
+          </button>
+
+          <button id="btnOverlayGoals" class="mt-nav-btn">
+            <svg viewBox="0 0 24 24">
+              <path
+                d="M19 5h-2V3H7v2H5c-1.1 0-2 .9-2 2v1c0 2.55 1.92 4.63 4.39 4.94.63 1.5 1.98 2.63 3.61 2.96V19H7v2h10v-2h-4v-3.1c1.63-.33 2.98-1.46 3.61-2.96C19.08 12.63 21 10.55 21 8V7c0-1.1-.9-2-2-2zM5 8V7h2v3.82C5.84 10.4 5 9.3 5 8zm14 0c0 1.3-.84 2.4-2 2.82V7h2v1z"
+              />
+            </svg>
+            <span>成就 (Goals)</span>
+          </button>
+
+          <button id="btnOverlayOptions" class="mt-nav-btn">
+            <svg viewBox="0 0 24 24">
+              <path
+                d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"
+              />
+            </svg>
+            <span>设置 (Options)</span>
+          </button>
+        </header>
+
+        <!-- TAB 1: BOARDS LIST -->
+        <div
+          id="tabViewBoards"
+          style="display: flex; flex-direction: column; flex: 1; overflow: hidden;"
+        >
+          <div class="boards-filter-bar">
+            <button class="filter-tab-btn active" data-filter="all">全部 (All)</button>
+            <button class="filter-tab-btn" data-filter="finished">已完成 (Finished)</button>
+            <button class="filter-tab-btn" data-filter="unfinished">未完成 (Unfinished)</button>
+          </div>
+          <div class="boards-summary-strip">
+            <span id="boardsSummaryText">已完成 0 / 100 关</span>
+            <div id="boardsTotalStars" class="total-stars-pill">0 <span>★</span></div>
+          </div>
+          <div id="boardsListContainer" class="boards-list-scroll"></div>
+        </div>
+
+        <!-- TAB 2: GOALS -->
+        <div
+          id="tabViewGoals"
+          style="display: none; flex-direction: column; flex: 1; overflow: hidden;"
+        >
+          <div id="goalsContentContainer" class="settings-content"></div>
+        </div>
+
+        <!-- TAB 3: OPTIONS -->
+        <div
+          id="tabViewOptions"
+          style="display: none; flex-direction: column; flex: 1; overflow: hidden;"
+        >
+          <div id="optionsContentContainer" class="settings-content"></div>
+        </div>
+      </section>
+
+      <!-- ================================================================
+           6. VICTORY MODAL WITH 3-STAR SLAM ANIMATION (Screenshot 4 Style)
+           ================================================================ -->
+      <section id="victoryModal" class="victory-backdrop hidden">
+        <div class="victory-top-stats">
+          <span id="vicTimeText">00:39</span>
+          <div class="total-stars-pill" style="font-size: 18px; padding: 4px 12px;">
+            <span id="vicTotalStarsText" style="color: #fff;">3</span>
+            <span>★</span>
+          </div>
+        </div>
+
+        <div class="victory-card">
+          <div class="victory-stars-grid">
+            <!-- Star 1: No Shuffle -->
+            <div class="victory-star-col">
+              <div id="vicStarSlot0" class="star-slot-wrap"></div>
+              <div class="star-cond-label">
+                未重排<br />
+                <span class="star-cond-sub">No Shuffle</span>
+              </div>
+            </div>
+
+            <!-- Star 2: No Hint -->
+            <div class="victory-star-col">
+              <div id="vicStarSlot1" class="star-slot-wrap"></div>
+              <div class="star-cond-label">
+                不用提示<br />
+                <span class="star-cond-sub">No Hint</span>
+              </div>
+            </div>
+
+            <!-- Star 3: Within Expected Time -->
+            <div class="victory-star-col">
+              <div id="vicStarSlot2" class="star-slot-wrap"></div>
+              <div class="star-cond-label">
+                预计时间内<br />
+                <span id="vicExpectedLabel" class="star-cond-sub">⏱ 02:00</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="victory-btn-row">
+            <button id="btnVicBoards" class="mt-gold-btn">Boards</button>
+            <button id="btnVicRestart" class="mt-gold-btn">Restart</button>
+            <button id="btnVicNext" class="mt-gold-btn">Next</button>
+          </div>
+        </div>
+
+        <div class="victory-goal-banner">
+          <div style="width: 28px; height: 28px; flex-shrink: 0;">
+            <svg viewBox="0 0 100 100">
+              <polygon
+                points="50,5 63,35 95,38 70,59 78,91 50,73 22,91 30,59 5,38 37,35"
+                fill="#ffd43b"
+                stroke="#b46900"
+                stroke-width="4"
+              />
+            </svg>
+          </div>
+          <span id="vicBannerText">恭喜完成本局挑战！</span>
+        </div>
+      </section>
+    </div>
+
+    <script>
+(function() {
+// === [src/engine/patterns.js] ===
+/**
+ * 100 High-Density Levels for 《一箭又一箭》 (Arrow by Arrow)
+ * Designed to match the exact grid density of the original WeChat mini-game (32x28 to 42x36 grids,
+ * 90 to 200+ winding snake arrows per board, with 16:9 mobile portrait proportion).
+ */
+function sanitizeMask(mask) {
+  const R = mask.length;
+  const C = mask[0].length;
+  const out = mask.map(row => [...row]);
+
+  // Remove or connect any degree-0 or degree-1 isolated 1-cell islands
+  let changed = true;
+  let guard = 0;
+  while (changed && guard++ < 8) {
+    changed = false;
+    for (let r = 0; r < R; r++) {
+      for (let c = 0; c < C; c++) {
+        if (out[r][c] === 1) {
+          let neighbors = 0;
+          if (r > 0 && out[r - 1][c] === 1) neighbors++;
+          if (r < R - 1 && out[r + 1][c] === 1) neighbors++;
+          if (c > 0 && out[r][c - 1] === 1) neighbors++;
+          if (c < C - 1 && out[r][c + 1] === 1) neighbors++;
+          if (neighbors === 0) {
+            out[r][c] = 0;
+            changed = true;
+          }
+        }
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * Create a high-density grid mask with 1-cell dot padding around the shape
+ * so empty grid dots are visible around and inside the silhouette like Screenshot 1 & 2.
+ */
+function buildHighDensityMask(rows, cols, shapeFn) {
+  const mask = Array.from({ length: rows }, (_, r) =>
+    Array.from({ length: cols }, (_, c) => {
+      // Leave 1 cell margin on outer border so external dots frame the shape nicely
+      if (r === 0 || r === rows - 1 || c === 0 || c === cols - 1) return 0;
+      const ny = ((r - 1) / (rows - 3)) * 2 - 1; // -1 .. +1
+      const nx = ((c - 1) / (cols - 3)) * 2 - 1; // -1 .. +1
+      return shapeFn(nx, ny, r, c, rows, cols) ? 1 : 0;
+    })
+  );
+  return sanitizeMask(mask);
+}
+
+/**
+ * Distance from point (px, py) to segment (ax, ay)-(bx, by)
+ */
+function sdSegment(px, py, ax, ay, bx, by) {
+  const pax = px - ax;
+  const pay = py - ay;
+  const bax = bx - ax;
+  const bay = by - ay;
+  const h = Math.max(0, Math.min(1, (pax * bax + pay * bay) / (bax * bax + bay * bay || 1)));
+  return Math.hypot(pax - bax * h, pay - bay * h);
+}
+
+/**
+ * Distance to box centered at (cx, cy) with half-extents (hx, hy)
+ */
+function sdBox(px, py, cx, cy, hx, hy) {
+  const dx = Math.abs(px - cx) - hx;
+  const dy = Math.abs(py - cy) - hy;
+  return Math.hypot(Math.max(dx, 0), Math.max(dy, 0)) + Math.min(Math.max(dx, dy), 0);
+}
+
+/**
+ * Distance to circle/ellipse
+ */
+function sdRing(px, py, cx, cy, radius, thickness) {
+  return Math.abs(Math.hypot(px - cx, py - cy) - radius) - thickness;
+}
+
+/**
+ * High-resolution bold glyph & emblem primitives (thick strokes like Screenshot Level 17 "B")
+ */
+const SHAPE_BUILDERS = [
+  // 1. Bold Capital 'B' (The exact iconic shape from the user's Level 17 screenshot!)
+  {
+    name: '经典重装 · B字迷宫',
+    fn: (nx, ny) => {
+      const leftSpine = nx >= -0.88 && nx <= -0.22 && Math.abs(ny) <= 0.92;
+      const topLoop =
+        Math.hypot((nx + 0.08) * 0.92, (ny + 0.46) * 1.12) <= 0.62 &&
+        Math.hypot((nx + 0.05) * 1.0, (ny + 0.46) * 1.15) >= 0.22;
+      const botLoop =
+        Math.hypot((nx + 0.05) * 0.88, (ny - 0.46) * 1.12) <= 0.66 &&
+        Math.hypot((nx + 0.02) * 1.0, (ny - 0.46) * 1.15) >= 0.23;
+      const topBar = ny >= -0.92 && ny <= -0.64 && nx >= -0.88 && nx <= 0.35;
+      const midBar = Math.abs(ny) <= 0.16 && nx >= -0.88 && nx <= 0.42;
+      const botBar = ny >= 0.64 && ny <= 0.92 && nx >= -0.88 && nx <= 0.45;
+      return leftSpine || topLoop || botLoop || topBar || midBar || botBar;
+    },
+  },
+  // 2. Bold 'S' Serpent
+  {
+    name: '灵蛇盘踞 · S形迷阵',
+    fn: (nx, ny) => {
+      const topArc =
+        ny <= 0.1 &&
+        sdRing(nx, (ny + 0.44) * 1.1, 0, 0, 0.48, 0.28) <= 0 &&
+        !(nx > 0.15 && ny > -0.35);
+      const botArc =
+        ny >= -0.1 &&
+        sdRing(nx, (ny - 0.44) * 1.1, 0, 0, 0.48, 0.28) <= 0 &&
+        !(nx < -0.15 && ny < 0.35);
+      const diag = sdSegment(nx, ny, -0.45, -0.25, 0.45, 0.25) <= 0.27;
+      return topArc || botArc || diag;
+    },
+  },
+  // 3. Giant Full Heart
+  {
+    name: '炽热之心 · 满格巨心',
+    fn: (nx, ny) => {
+      const x = nx * 1.12;
+      const y = -ny * 1.1 + 0.18;
+      const a = x * x + y * y - 0.62;
+      const inside = a * a * a - x * x * y * y * y <= 0;
+      const centerHole = Math.hypot(nx, ny + 0.05) < 0.2;
+      return inside && !centerHole;
+    },
+  },
+  // 4. Royal Double-Ring Target
+  {
+    name: '星环同心 · 双子魔环',
+    fn: (nx, ny) => {
+      const d = Math.hypot(nx, ny);
+      const outer = d <= 0.96 && d >= 0.56;
+      const inner = d <= 0.38;
+      const cross = (Math.abs(nx) <= 0.18 || Math.abs(ny) <= 0.18) && d <= 0.96;
+      return outer || inner || cross;
+    },
+  },
+  // 5. Bold Figure '8' Hourglass
+  {
+    name: '无限回廊 · 八字天枢',
+    fn: (nx, ny) => {
+      const top =
+        Math.hypot(nx * 0.92, (ny + 0.45) * 1.15) <= 0.66 &&
+        Math.hypot(nx, (ny + 0.46) * 1.15) >= 0.22;
+      const bot =
+        Math.hypot(nx * 0.88, (ny - 0.45) * 1.15) <= 0.7 &&
+        Math.hypot(nx, (ny - 0.46) * 1.15) >= 0.24;
+      const waist = Math.abs(ny) <= 0.18 && Math.abs(nx) <= 0.52;
+      return top || bot || waist;
+    },
+  },
+  // 6. Imperial Butterfly
+  {
+    name: '凤尾蝶翼 · 幻彩对称',
+    fn: (nx, ny) => {
+      const ax = Math.abs(nx);
+      const upperWing = Math.hypot((ax - 0.45) * 0.95, (ny + 0.35) * 1.05) <= 0.52;
+      const lowerWing = Math.hypot((ax - 0.38) * 1.05, (ny - 0.42) * 1.05) <= 0.46;
+      const body = ax <= 0.18 && Math.abs(ny) <= 0.85;
+      const eyeHole = Math.hypot(ax - 0.52, ny + 0.38) < 0.16;
+      return (upperWing || lowerWing || body) && !eyeHole;
+    },
+  },
+  // 7. Four-Window Fortress
+  {
+    name: '九宫重城 · 四象方阵',
+    fn: (nx, ny) => {
+      const inSquare = Math.abs(nx) <= 0.94 && Math.abs(ny) <= 0.94;
+      const hole =
+        Math.abs(nx) >= 0.22 &&
+        Math.abs(nx) <= 0.56 &&
+        Math.abs(ny) >= 0.22 &&
+        Math.abs(ny) <= 0.56;
+      return inSquare && !hole;
+    },
+  },
+  // 8. Bold Letter 'A'
+  {
+    name: '巅峰王座 · A字高塔',
+    fn: (nx, ny) => {
+      const leftLeg = sdSegment(nx, ny, 0, -0.82, -0.68, 0.82) <= 0.26;
+      const rightLeg = sdSegment(nx, ny, 0, -0.82, 0.68, 0.82) <= 0.26;
+      const crossbar = Math.abs(ny - 0.18) <= 0.2 && Math.abs(nx) <= 0.55;
+      const topCap = Math.abs(ny + 0.72) <= 0.18 && Math.abs(nx) <= 0.35;
+      return leftLeg || rightLeg || crossbar || topCap;
+    },
+  },
+  // 9. Bold Letter 'G'
+  {
+    name: '玄武盘旋 · G字引力',
+    fn: (nx, ny) => {
+      const ring = sdRing(nx, ny, 0, 0, 0.62, 0.28) <= 0 && !(nx > 0.2 && ny < -0.05 && ny > -0.45);
+      const shelf = ny >= -0.08 && ny <= 0.28 && nx >= -0.05 && nx <= 0.88;
+      const pillar = nx >= 0.42 && nx <= 0.88 && ny >= -0.08 && ny <= 0.75;
+      return ring || shelf || pillar;
+    },
+  },
+  // 10. Giant Five-Pointed Star Emblem
+  {
+    name: '耀世星芒 · 五角星阵',
+    fn: (nx, ny) => {
+      const angle = Math.atan2(ny, nx) + Math.PI / 2;
+      const r = Math.hypot(nx, ny);
+      const starBound = 0.68 + 0.26 * Math.cos(angle * 5);
+      const centerHole = r < 0.2;
+      return r <= starBound && !centerHole;
+    },
+  },
+  // 11. Bold Letter 'M'
+  {
+    name: '群峰耸立 · M字双峡',
+    fn: (nx, ny) => {
+      const ax = Math.abs(nx);
+      const outerPillar = ax >= 0.46 && ax <= 0.92 && Math.abs(ny) <= 0.9;
+      const vDiagonal = sdSegment(ax, ny, 0.7, -0.78, 0.0, 0.35) <= 0.25;
+      const centerSpike = ax <= 0.24 && ny >= -0.25 && ny <= 0.65;
+      return outerPillar || vDiagonal || centerSpike;
+    },
+  },
+  // 12. Bold Letter 'R'
+  {
+    name: '骑士战旗 · R字纹章',
+    fn: (nx, ny) => {
+      const spine = nx >= -0.88 && nx <= -0.22 && Math.abs(ny) <= 0.92;
+      const topBowl =
+        Math.hypot((nx + 0.05) * 0.88, (ny + 0.42) * 1.1) <= 0.66 &&
+        Math.hypot((nx + 0.02) * 1.0, (ny + 0.42) * 1.15) >= 0.22;
+      const leg = sdSegment(nx, ny, -0.15, 0.02, 0.65, 0.82) <= 0.26;
+      const topBar = ny >= -0.92 && ny <= -0.62 && nx >= -0.88 && nx <= 0.35;
+      return spine || topBowl || leg || topBar;
+    },
+  },
+  // 13. Ornate Chinese Lantern
+  {
+    name: '盛世华灯 · 宫灯迷阵',
+    fn: (nx, ny) => {
+      const body = Math.hypot(nx * 0.92, ny * 1.08) <= 0.86;
+      const topCap = Math.abs(ny + 0.82) <= 0.14 && Math.abs(nx) <= 0.52;
+      const botCap = Math.abs(ny - 0.82) <= 0.14 && Math.abs(nx) <= 0.52;
+      const slitL = Math.abs(nx + 0.35) <= 0.11 && Math.abs(ny) <= 0.42;
+      const slitR = Math.abs(nx - 0.35) <= 0.11 && Math.abs(ny) <= 0.42;
+      return (body || topCap || botCap) && !slitL && !slitR;
+    },
+  },
+  // 14. Four-Leaf Clover
+  {
+    name: '四叶奇迹 · 幸运草堂',
+    fn: (nx, ny) => {
+      const ax = Math.abs(nx);
+      const ay = Math.abs(ny);
+      const leaf = Math.hypot(ax - 0.4, ay - 0.4) <= 0.48;
+      const core = Math.hypot(nx, ny) <= 0.34;
+      const hole = Math.hypot(ax - 0.48, ay - 0.48) < 0.14;
+      return (leaf || core) && !hole;
+    },
+  },
+  // 15. Bold Letter 'Q'
+  {
+    name: '深渊之眼 · Q字魔戒',
+    fn: (nx, ny) => {
+      const ring = sdRing(nx, ny, 0, -0.04, 0.62, 0.28) <= 0;
+      const tail = sdSegment(nx, ny, 0.08, 0.15, 0.72, 0.82) <= 0.24;
+      const innerBar = Math.abs(ny + 0.04) <= 0.14 && Math.abs(nx) <= 0.38;
+      return ring || tail || innerBar;
+    },
+  },
+  // 16. Royal Crown
+  {
+    name: '至尊王冠 · 黄金冕旒',
+    fn: (nx, ny) => {
+      const base = ny >= 0.28 && ny <= 0.88 && Math.abs(nx) <= 0.9;
+      const midBand = ny >= -0.25 && ny <= 0.35 && Math.abs(nx) <= 0.86;
+      const leftPeak = sdSegment(nx, ny, -0.75, 0.2, -0.82, -0.78) <= 0.22;
+      const rightPeak = sdSegment(nx, ny, 0.75, 0.2, 0.82, -0.78) <= 0.22;
+      const centerPeak = sdSegment(nx, ny, 0, 0.25, 0, -0.85) <= 0.24;
+      const diagL = sdSegment(nx, ny, -0.78, -0.68, 0, 0.1) <= 0.2;
+      const diagR = sdSegment(nx, ny, 0.78, -0.68, 0, 0.1) <= 0.2;
+      const jewelHole = Math.abs(ny - 0.56) <= 0.12 && Math.abs( Math.abs(nx) - 0.42 ) <= 0.14;
+      return (base || midBand || leftPeak || rightPeak || centerPeak || diagL || diagR) && !jewelHole;
+    },
+  },
+  // 17. Bold Letter 'K'
+  {
+    name: '破晓之刃 · K字战戟',
+    fn: (nx, ny) => {
+      const spine = nx >= -0.88 && nx <= -0.22 && Math.abs(ny) <= 0.92;
+      const upperArm = sdSegment(nx, ny, -0.3, 0.05, 0.68, -0.78) <= 0.27;
+      const lowerArm = sdSegment(nx, ny, -0.2, -0.05, 0.68, 0.78) <= 0.27;
+      const crossBlock = Math.abs(ny) <= 0.25 && nx >= -0.88 && nx <= 0.25;
+      return spine || upperArm || lowerArm || crossBlock;
+    },
+  },
+  // 18. Owl Guardian
+  {
+    name: '暗夜枭雄 · 守望图腾',
+    fn: (nx, ny) => {
+      const body = Math.hypot(nx * 0.95, (ny - 0.12) * 0.92) <= 0.86;
+      const head = Math.hypot(nx * 1.0, (ny + 0.52) * 1.2) <= 0.78;
+      const earL = sdSegment(nx, ny, -0.45, -0.5, -0.75, -0.88) <= 0.22;
+      const earR = sdSegment(nx, ny, 0.45, -0.5, 0.75, -0.88) <= 0.22;
+      const eyeL = Math.hypot(nx + 0.34, ny + 0.42) < 0.18;
+      const eyeR = Math.hypot(nx - 0.34, ny + 0.42) < 0.18;
+      const bellyHole = Math.hypot(nx, ny - 0.38) < 0.2;
+      return (body || head || earL || earR) && !eyeL && !eyeR && !bellyHole;
+    },
+  },
+  // 19. Bold Number '2' / Swan
+  {
+    name: '凌波天鹅 · 贰字迷局',
+    fn: (nx, ny) => {
+      const topArc =
+        ny <= 0.05 &&
+        sdRing(nx, (ny + 0.42) * 1.1, 0, 0, 0.5, 0.28) <= 0 &&
+        !(nx < -0.25 && ny > -0.25);
+      const diag = sdSegment(nx, ny, 0.52, -0.25, -0.62, 0.72) <= 0.27;
+      const base = ny >= 0.48 && ny <= 0.92 && Math.abs(nx) <= 0.88;
+      return topArc || diag || base;
+    },
+  },
+  // 20. Bold Number '5'
+  {
+    name: '五岳独尊 · 伍字矩阵',
+    fn: (nx, ny) => {
+      const topBar = ny >= -0.92 && ny <= -0.52 && nx >= -0.86 && nx <= 0.82;
+      const leftDrop = nx >= -0.86 && nx <= -0.24 && ny >= -0.92 && ny <= 0.08;
+      const midBar = Math.abs(ny + 0.05) <= 0.22 && nx >= -0.86 && nx <= 0.45;
+      const botLoop =
+        ny >= -0.2 &&
+        sdRing(nx, (ny - 0.38) * 1.08, 0.02, 0, 0.5, 0.28) <= 0 &&
+        !(nx < -0.35 && ny < 0.42 && ny > 0.08);
+      return topBar || leftDrop || midBar || botLoop;
+    },
+  },
+  // 21. Bold Number '6'
+  {
+    name: '六合乾坤 · 陆字旋涡',
+    fn: (nx, ny) => {
+      const outerC = sdRing(nx, ny * 0.92, 0.05, 0, 0.62, 0.27) <= 0 && !(nx > 0.25 && ny < -0.15);
+      const botLoop = sdRing(nx, (ny - 0.35) * 1.1, 0, 0, 0.48, 0.26) <= 0;
+      const bridge = Math.abs(ny - 0.02) <= 0.2 && Math.abs(nx) <= 0.65;
+      return outerC || botLoop || bridge;
+    },
+  },
+  // 22. Bold Number '9'
+  {
+    name: '九霄云外 · 玖字神殿',
+    fn: (nx, ny) => {
+      const outerC = sdRing(nx, ny * 0.92, -0.05, 0, 0.62, 0.27) <= 0 && !(nx < -0.25 && ny > 0.15);
+      const topLoop = sdRing(nx, (ny + 0.35) * 1.1, 0, 0, 0.48, 0.26) <= 0;
+      const bridge = Math.abs(ny + 0.02) <= 0.2 && Math.abs(nx) <= 0.65;
+      return outerC || topLoop || bridge;
+    },
+  },
+  // 23. Bold Letter 'E' & Comb Maze
+  {
+    name: '千层书阁 · E字回廊',
+    fn: (nx, ny) => {
+      const spine = nx >= -0.88 && nx <= -0.25 && Math.abs(ny) <= 0.92;
+      const topBar = ny >= -0.92 && ny <= -0.52 && nx >= -0.88 && nx <= 0.86;
+      const midBar = Math.abs(ny) <= 0.22 && nx >= -0.88 && nx <= 0.72;
+      const botBar = ny >= 0.52 && ny <= 0.92 && nx >= -0.88 && nx <= 0.86;
+      const rightTipTop = nx >= 0.42 && nx <= 0.86 && ny >= -0.92 && ny <= -0.28;
+      const rightTipBot = nx >= 0.42 && nx <= 0.86 && ny >= 0.28 && ny <= 0.92;
+      return spine || topBar || midBar || botBar || rightTipTop || rightTipBot;
+    },
+  },
+  // 24. Bold Letter 'H' Cathedral
+  {
+    name: '双子天桥 · H字连城',
+    fn: (nx, ny) => {
+      const ax = Math.abs(nx);
+      const pillars = ax >= 0.34 && ax <= 0.9 && Math.abs(ny) <= 0.92;
+      const bridge = Math.abs(ny) <= 0.28 && ax <= 0.9;
+      const topArch = ny <= -0.58 && ny >= -0.92 && ax <= 0.65;
+      const botArch = ny >= 0.58 && ny <= 0.92 && ax <= 0.65;
+      return pillars || bridge || topArch || botArch;
+    },
+  },
+  // 25. Bold Letter 'W'
+  {
+    name: '沧海龙吟 · W字深谷',
+    fn: (nx, ny) => {
+      const ax = Math.abs(nx);
+      const outerPillar = ax >= 0.46 && ax <= 0.92 && Math.abs(ny) <= 0.9;
+      const vDiagonal = sdSegment(ax, -ny, 0.7, -0.78, 0.0, 0.35) <= 0.25;
+      const centerSpike = ax <= 0.24 && ny >= -0.65 && ny <= 0.25;
+      return outerPillar || vDiagonal || centerSpike;
+    },
+  },
+  // 26. Bold Letter 'Z'
+  {
+    name: '雷霆闪电 · Z字风暴',
+    fn: (nx, ny) => {
+      const topBar = ny >= -0.92 && ny <= -0.48 && Math.abs(nx) <= 0.88;
+      const botBar = ny >= 0.48 && ny <= 0.92 && Math.abs(nx) <= 0.88;
+      const diag = sdSegment(nx, ny, 0.65, -0.6, -0.65, 0.6) <= 0.28;
+      const centerBelt = Math.abs(ny) <= 0.18 && Math.abs(nx) <= 0.55;
+      return topBar || botBar || diag || centerBelt;
+    },
+  },
+  // 27. Bold Letter 'P' & Loop
+  {
+    name: '战锤勋章 · P字圣殿',
+    fn: (nx, ny) => {
+      const spine = nx >= -0.88 && nx <= -0.22 && Math.abs(ny) <= 0.92;
+      const topBowl =
+        Math.hypot((nx + 0.05) * 0.85, (ny + 0.35) * 1.05) <= 0.72 &&
+        Math.hypot((nx + 0.02) * 1.0, (ny + 0.35) * 1.1) >= 0.23;
+      const foot = ny >= 0.52 && ny <= 0.92 && nx >= -0.88 && nx <= 0.45;
+      return spine || topBowl || foot;
+    },
+  },
+  // 28. Anchor of Poseidon
+  {
+    name: '海神巨锚 · 深渊铁壁',
+    fn: (nx, ny) => {
+      const ring = sdRing(nx, ny, 0, -0.58, 0.26, 0.14) <= 0;
+      const shaft = Math.abs(nx) <= 0.22 && ny >= -0.42 && ny <= 0.88;
+      const crossbar = Math.abs(ny + 0.16) <= 0.18 && Math.abs(nx) <= 0.72;
+      const fluke =
+        ny >= 0.05 &&
+        sdRing(nx, (ny - 0.1) * 1.05, 0, 0, 0.68, 0.24) <= 0;
+      return ring || shaft || crossbar || fluke;
+    },
+  },
+  // 29. Celtic Shield Knot
+  {
+    name: '凯尔特盾 · 圣堂盘结',
+    fn: (nx, ny) => {
+      const oct = Math.abs(nx) + Math.abs(ny) <= 1.38 && Math.max(Math.abs(nx), Math.abs(ny)) <= 0.92;
+      const ax = Math.abs(nx);
+      const ay = Math.abs(ny);
+      const windowHole = ax >= 0.24 && ax <= 0.52 && ay >= 0.24 && ay <= 0.52;
+      return oct && !windowHole;
+    },
+  },
+  // 30. Yin-Yang Dual Vortex
+  {
+    name: '太极两仪 · 阴阳双鱼',
+    fn: (nx, ny) => {
+      const d = Math.hypot(nx, ny);
+      const eye1 = Math.hypot(nx, ny + 0.45) < 0.18;
+      const eye2 = Math.hypot(nx, ny - 0.45) < 0.18;
+      return d <= 0.94 && !eye1 && !eye2;
+    },
+  },
+];
+
+const DIFFICULTY_TIERS = [
+  { maxId: 20, label: '高密初阶', baseRows: 36, baseCols: 30, expectedSec: 360, minLen: 3, maxLen: 8 },
+  { maxId: 50, label: '高密进阶', baseRows: 38, baseCols: 32, expectedSec: 450, minLen: 3, maxLen: 9 },
+  { maxId: 80, label: '烧脑大师', baseRows: 40, baseCols: 34, expectedSec: 540, minLen: 3, maxLen: 10 },
+  { maxId: 100, label: '传奇宗师', baseRows: 42, baseCols: 36, expectedSec: 600, minLen: 3, maxLen: 10 },
+];
+
+/**
+ * Apply subtle organic variations (rotations/mirrors/inner carve patterns) for levels 31..100
+ * while keeping Level 17 strictly locked to the iconic Bold 'B' from the screenshot!
+ */
+function buildLevelDefinition(id) {
+  const tier = DIFFICULTY_TIERS.find(t => id <= t.maxId) || DIFFICULTY_TIERS[DIFFICULTY_TIERS.length - 1];
+
+  // Ensure Level 17 is specifically the Bold 'B' from the user's screenshot!
+  let builderIdx;
+  if (id === 17) {
+    builderIdx = 0; // Bold 'B'
+  } else if (id === 1) {
+    builderIdx = 0; // Let Level 1 also start with the iconic high-density Bold 'B' style!
+  } else if (id === 2) {
+    builderIdx = 1; // Bold 'S' Serpent
+  } else {
+    builderIdx = (id * 7 + Math.floor(id / 3)) % SHAPE_BUILDERS.length;
+  }
+
+  const baseBuilder = SHAPE_BUILDERS[builderIdx];
+  const variant = Math.floor((id - 1) / SHAPE_BUILDERS.length);
+
+  const rows = id === 17 ? 38 : tier.baseRows;
+  const cols = id === 17 ? 32 : tier.baseCols;
+
+  const mask = buildHighDensityMask(rows, cols, (nx, ny, r, c) => {
+    let x = nx;
+    let y = ny;
+    // Apply symmetry/orientation variations on higher cycles (except Level 17 which stays canonical)
+    if (id !== 17) {
+      if (variant === 1) {
+        x = -nx;
+      } else if (variant === 2) {
+        y = -ny;
+      } else if (variant >= 3) {
+        x = -nx;
+        y = -ny;
+      }
+    }
+    return baseBuilder.fn(x, y, r, c, rows, cols);
+  });
+
+  const suffix = variant > 0 && id !== 17 ? ` · 贰式` : '';
+  const name = id === 17 ? '经典17关 · B字迷宫' : `${baseBuilder.name}${suffix}`;
+
+  return {
+    id,
+    name,
+    difficulty: tier.label,
+    expectedSeconds: tier.expectedSec,
+    seed: 10000 + id * 313,
+    minSnakeLen: tier.minLen,
+    maxSnakeLen: tier.maxLen,
+    mask,
+  };
+}
+const LEVEL_DEFINITIONS = Array.from({ length: 100 }, (_, i) =>
+  buildLevelDefinition(i + 1)
+);
+
+
+// === [src/engine/solver.js] ===
+/**
+ * Solver & Collision Detection Engine for 《一箭又一箭》
+ */
+
+/**
+ * Build a fast lookup map from "r,c" (or r * cols + c) to arrow.id
+ */
+function buildOccupancyGrid(arrows, rows, cols) {
+  const grid = new Int32Array(rows * cols).fill(-1);
+  for (let i = 0; i < arrows.length; i++) {
+    const arrow = arrows[i];
+    if (arrow.removed) continue;
+    for (const cell of arrow.cells) {
+      if (cell.r >= 0 && cell.r < rows && cell.c >= 0 && cell.c < cols) {
+        grid[cell.r * cols + cell.c] = arrow.id;
+      }
+    }
+  }
+  return grid;
+}
+
+/**
+ * Check if a specific arrow can exit the board without hitting any other active arrow.
+ * Returns { canExit: boolean, blockerId: number|null, blockerCell: {r,c}|null, distanceToBlocker: number }
+ */
+function checkArrowExit(arrow, activeArrows, rows, cols, prebuiltGrid = null) {
+  const grid = prebuiltGrid || buildOccupancyGrid(activeArrows, rows, cols);
+  const { r: hr, c: hc } = arrow.head;
+  const { dr, dc } = arrow.dir;
+
+  let step = 1;
+  while (true) {
+    const nr = hr + step * dr;
+    const nc = hc + step * dc;
+    if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) {
+      return {
+        canExit: true,
+        blockerId: null,
+        blockerCell: null,
+        distanceToBlocker: step,
+      };
+    }
+    const occupantId = grid[nr * cols + nc];
+    if (occupantId !== -1) {
+      return {
+        canExit: false,
+        blockerId: occupantId,
+        blockerCell: { r: nr, c: nc },
+        distanceToBlocker: step - 1,
+      };
+    }
+    step++;
+  }
+}
+
+/**
+ * Return all currently removable (unblocked) arrows.
+ */
+function getRemovableArrows(activeArrows, rows, cols) {
+  const remaining = activeArrows.filter(a => !a.removed);
+  const grid = buildOccupancyGrid(remaining, rows, cols);
+  return remaining.filter(arrow => checkArrowExit(arrow, remaining, rows, cols, grid).canExit);
+}
+
+/**
+ * Pick one random removable arrow for the Hint feature.
+ */
+function getRandomHintArrow(activeArrows, rows, cols, rng = Math.random) {
+  const removable = getRemovableArrows(activeArrows, rows, cols);
+  if (removable.length === 0) return null;
+  const idx = Math.floor(rng() * removable.length);
+  return removable[idx];
+}
+
+/**
+ * Verify that a set of arrows is 100% solvable from start to finish (zero deadlock).
+ * Also returns a valid solution sequence of arrow IDs and complexity metrics.
+ */
+function verifySolvable(arrows, rows, cols) {
+  const pool = arrows.filter(a => !a.removed).map(a => ({ ...a, removed: false }));
+  const total = pool.length;
+  const sequence = [];
+  let layers = 0;
+
+  while (sequence.length < total) {
+    const grid = buildOccupancyGrid(pool, rows, cols);
+    const removableNow = [];
+    for (const arrow of pool) {
+      if (arrow.removed) continue;
+      if (checkArrowExit(arrow, pool, rows, cols, grid).canExit) {
+        removableNow.push(arrow);
+      }
+    }
+    if (removableNow.length === 0) {
+      return {
+        solvable: false,
+        clearedCount: sequence.length,
+        totalCount: total,
+        sequence,
+        layers,
+      };
+    }
+    layers++;
+    for (const arrow of removableNow) {
+      arrow.removed = true;
+      sequence.push(arrow.id);
+    }
+  }
+
+  return {
+    solvable: true,
+    clearedCount: sequence.length,
+    totalCount: total,
+    sequence,
+    layers,
+  };
+}
+
+
+// === [src/engine/generator.js] ===
+/**
+ * 100% Solvable Procedural Arrow Generator, Shuffler, and Restart-Extender
+ * for 《一箭又一箭》 (Arrow by Arrow)
+ */
+
+// Exact 8-color pastel neon palette extracted from the user's 《一箭又一箭》 screenshots
+const ARROW_PALETTE = [
+  '#f08cae', // Coral Pink
+  '#b689e8', // Lavender Purple
+  '#7c8ce8', // Periwinkle Blue
+  '#6eb5eb', // Sky Cyan
+  '#5ec7b8', // Mint Teal
+  '#78d168', // Fresh Lime Green
+  '#f2c94c', // Warm Amber Yellow
+  '#eb9d75', // Soft Peach Orange
+];
+
+const DIRS = [
+  { dr: -1, dc: 0 }, // UP
+  { dr: 1, dc: 0 },  // DOWN
+  { dr: 0, dc: -1 }, // LEFT
+  { dr: 0, dc: 1 },  // RIGHT
+];
+
+/**
+ * Deterministic seeded PRNG (Mulberry32)
+ */
+function createRNG(seed = 12345) {
+  let s = seed >>> 0;
+  return function rng() {
+    s += 0x6d2b79f5;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t ^= t + Math.imul(t ^ (t >>> 7), 61 | t);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * Check if ray from (hr, hc) in direction (dr, dc) is completely clear of any cell in `occupiedGrid`
+ * Returns { clear: boolean, passedRemovedCount: number }
+ */
+function checkRayOnGrid(hr, hc, dr, dc, rows, cols, occupiedGrid, peeledGrid = null) {
+  let r = hr + dr;
+  let c = hc + dc;
+  let passedPeeled = 0;
+  while (r >= 0 && r < rows && c >= 0 && c < cols) {
+    const idx = r * cols + c;
+    if (occupiedGrid[idx] === 1) {
+      return { clear: false, passedPeeled: 0 };
+    }
+    if (peeledGrid && peeledGrid[idx] === 1) {
+      passedPeeled++;
+    }
+    r += dr;
+    c += dc;
+  }
+  return { clear: true, passedPeeled };
+}
+
+/**
+ * Count orthogonal neighbors of (r, c) that have `grid[idx] === 1`
+ */
+function countNeighbors(r, c, rows, cols, grid) {
+  let count = 0;
+  for (const { dr, dc } of DIRS) {
+    const nr = r + dr;
+    const nc = c + dc;
+    if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && grid[nr * cols + nc] === 1) {
+      count++;
+    }
+  }
+  return count;
+}
+
+/**
+ * Check if setting `grid[cellIdx] = 0` would create any degree-0 (isolated single cell) neighbor in `grid`,
+ * EXCEPT possibly `allowSingleIdx` (when we are about to step into `allowSingleIdx` next).
+ */
+function createsIsolatedNeighbor(r, c, rows, cols, grid, allowSingleIdx = -1) {
+  for (const { dr, dc } of DIRS) {
+    const nr = r + dr;
+    const nc = c + dc;
+    if (nr >= 0 && nr < rows && nc >= 0 && nc < cols) {
+      const nIdx = nr * cols + nc;
+      if (grid[nIdx] === 1 && nIdx !== allowSingleIdx) {
+        // Since (r, c) is currently 0 (already temporarily removed), if neighbor has 0 neighbors now, it's isolated!
+        if (countNeighbors(nr, nc, rows, cols, grid) === 0) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
+/**
+ * Partition the target cells (`targetMask` = Uint8Array(rows*cols)) into 100% solvable winding arrows,
+ * while treating `fixedObstacleGrid` (Uint8Array(rows*cols)) as permanent obstacles that rays cannot cross.
+ */
+function partitionCellsIntoArrows({
+  rows,
+  cols,
+  targetGrid,
+  fixedObstacleGrid = null,
+  minLen = 3,
+  maxLen = 12,
+  seed = 1001,
+  startId = 1,
+}) {
+  const rng = createRNG(seed);
+  const remaining = new Uint8Array(targetGrid);
+  const obstacles = new Uint8Array(rows * cols);
+  const shadowedByFixed = new Uint8Array(rows * cols);
+  for (let i = 0; i < rows * cols; i++) {
+    if (remaining[i] === 1 || (fixedObstacleGrid && fixedObstacleGrid[i] === 1)) {
+      obstacles[i] = 1;
+    }
+  }
+  if (fixedObstacleGrid) {
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const idx = r * cols + c;
+        if (remaining[idx] === 1) {
+          let hasClearDir = false;
+          for (const { dr, dc } of DIRS) {
+            if (checkRayOnGrid(r, c, dr, dc, rows, cols, fixedObstacleGrid, null).clear) {
+              hasClearDir = true;
+              break;
+            }
+          }
+          if (!hasClearDir) shadowedByFixed[idx] = 1;
+        }
+      }
+    }
+  }
+  const peeledGrid = new Uint8Array(rows * cols);
+
+  // First ensure no isolated single cells exist in `remaining`
+  const orphanCells = [];
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const idx = r * cols + c;
+      if (remaining[idx] === 1 && countNeighbors(r, c, rows, cols, remaining) === 0) {
+        orphanCells.push({ r, c, idx });
+        remaining[idx] = 0;
+        obstacles[idx] = 0;
+      }
+    }
+  }
+
+  let totalRemaining = 0;
+  for (let i = 0; i < rows * cols; i++) {
+    if (remaining[i] === 1) totalRemaining++;
+  }
+
+  const arrows = [];
+  let nextId = startId;
+
+  while (totalRemaining > 0) {
+    // Find all valid (head, neck) pairs on the current boundary of `remaining`
+    const candidates = [];
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const hIdx = r * cols + c;
+        if (remaining[hIdx] !== 1) continue;
+
+        for (const { dr, dc } of DIRS) {
+          // Neck is at (r - dr, c - dc)
+          const pr = r - dr;
+          const pc = c - dc;
+          if (pr < 0 || pr >= rows || pc < 0 || pc >= cols) continue;
+          const pIdx = pr * cols + pc;
+          if (remaining[pIdx] !== 1) continue;
+
+          const rayCheck = checkRayOnGrid(r, c, dr, dc, rows, cols, obstacles, peeledGrid);
+          if (rayCheck.clear) {
+            candidates.push({
+              hr: r,
+              hc: c,
+              hIdx,
+              pr,
+              pc,
+              pIdx,
+              dr,
+              dc,
+              passedPeeled: rayCheck.passedPeeled,
+            });
+          }
+        }
+      }
+    }
+
+    if (candidates.length === 0) {
+      // Try absorbing remaining shadowed pocket cells into the tail of an adjacent already-peeled arrow
+      let absorbedIntoExisting = false;
+      for (let i = arrows.length - 1; i >= 0; i--) {
+        const existingArrow = arrows[i];
+        let grew = true;
+        while (grew) {
+          grew = false;
+          const tail = existingArrow.cells[0];
+          for (const { dr, dc } of DIRS) {
+            const nr = tail.r + dr;
+            const nc = tail.c + dc;
+            if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue;
+            const nIdx = nr * cols + nc;
+            if (remaining[nIdx] !== 1) continue;
+
+            // Ensure (nr, nc) does not lie on the exit ray of existingArrow or any arrow peeled BEFORE existingArrow (0..i)
+            let blocksEarlierRay = false;
+            for (let j = 0; j <= i; j++) {
+              const a = arrows[j];
+              const adr = a.dir.dr;
+              const adc = a.dir.dc;
+              if (
+                (adr !== 0 && nc === a.head.c && (nr - a.head.r) * adr > 0) ||
+                (adc !== 0 && nr === a.head.r && (nc - a.head.c) * adc > 0)
+              ) {
+                blocksEarlierRay = true;
+                break;
+              }
+            }
+            if (!blocksEarlierRay) {
+              existingArrow.cells.unshift({ r: nr, c: nc });
+              remaining[nIdx] = 0;
+              obstacles[nIdx] = 0;
+              peeledGrid[nIdx] = 1;
+              totalRemaining--;
+              grew = true;
+              absorbedIntoExisting = true;
+              break;
+            }
+          }
+        }
+      }
+      if (absorbedIntoExisting) {
+        for (let r = 0; r < rows; r++) {
+          for (let c = 0; c < cols; c++) {
+            const idx = r * cols + c;
+            if (remaining[idx] === 1 && countNeighbors(r, c, rows, cols, remaining) === 0) {
+              orphanCells.push({ r, c, idx });
+              remaining[idx] = 0;
+              obstacles[idx] = 0;
+              totalRemaining--;
+            }
+          }
+        }
+        if (totalRemaining <= 0) break;
+        continue;
+      }
+
+      // Fallback if fixedObstacleGrid blocked a deep pocket: relax fixedObstacleGrid for this pocket
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const hIdx = r * cols + c;
+          if (remaining[hIdx] !== 1) continue;
+          for (const { dr, dc } of DIRS) {
+            const pr = r - dr;
+            const pc = c - dc;
+            if (pr < 0 || pr >= rows || pc < 0 || pc >= cols) continue;
+            const pIdx = pr * cols + pc;
+            if (remaining[pIdx] !== 1) continue;
+            const rayCheck = checkRayOnGrid(r, c, dr, dc, rows, cols, remaining, peeledGrid);
+            if (rayCheck.clear) {
+              candidates.push({
+                hr: r,
+                hc: c,
+                hIdx,
+                pr,
+                pc,
+                pIdx,
+                dr,
+                dc,
+                passedPeeled: rayCheck.passedPeeled,
+              });
+            }
+          }
+        }
+      }
+      if (candidates.length === 0) break;
+    }
+
+    // Score candidates:
+    // Prefer candidates that:
+    // 1. Do not isolate neighbors when removing head + neck
+    // 2. Pass through previously peeled cells (creates rich interlocking dependencies!)
+    // 3. Have low degree (cleans up corners and peninsulas smoothly)
+    const cleanCandidates = [];
+    for (const cand of candidates) {
+      remaining[cand.hIdx] = 0;
+      remaining[cand.pIdx] = 0;
+      const headIsolates = createsIsolatedNeighbor(cand.hr, cand.hc, rows, cols, remaining, -1);
+      // For neck, if it creates a single isolated neighbor, we can step into that neighbor as the 3rd cell!
+      let neckIsolatedCount = 0;
+      let forcedNext = null;
+      for (const { dr, dc } of DIRS) {
+        const nr = cand.pr + dr;
+        const nc = cand.pc + dc;
+        if (nr >= 0 && nr < rows && nc >= 0 && nc < cols) {
+          const nIdx = nr * cols + nc;
+          if (remaining[nIdx] === 1 && countNeighbors(nr, nc, rows, cols, remaining) === 0) {
+            neckIsolatedCount++;
+            forcedNext = { r: nr, c: nc, idx: nIdx };
+          }
+        }
+      }
+      remaining[cand.hIdx] = 1;
+      remaining[cand.pIdx] = 1;
+
+      if (!headIsolates && neckIsolatedCount <= 1) {
+        const degH = countNeighbors(cand.hr, cand.hc, rows, cols, remaining);
+        const weight =
+          1 +
+          (cand.passedPeeled > 0 ? 3.5 : 0) +
+          (degH === 1 ? 2.5 : 0) +
+          rng() * 2.0;
+        cleanCandidates.push({ ...cand, forcedNext, weight });
+      }
+    }
+
+    const pool = cleanCandidates.length > 0 ? cleanCandidates : candidates;
+    // Weighted random selection from top candidates
+    pool.sort((a, b) => (b.weight || 0) - (a.weight || 0));
+    const topK = Math.min(pool.length, Math.max(4, Math.ceil(pool.length * 0.35)));
+    const chosen = pool[Math.floor(rng() * topK)];
+
+    // Start building snake from head -> neck -> tail
+    const reversedCells = [
+      { r: chosen.hr, c: chosen.hc, idx: chosen.hIdx },
+      { r: chosen.pr, c: chosen.pc, idx: chosen.pIdx },
+    ];
+    remaining[chosen.hIdx] = 0;
+    remaining[chosen.pIdx] = 0;
+    obstacles[chosen.hIdx] = 0;
+    obstacles[chosen.pIdx] = 0;
+    peeledGrid[chosen.hIdx] = 1;
+    peeledGrid[chosen.pIdx] = 1;
+    totalRemaining -= 2;
+
+    // Determine target length for this snake (allow longer tail if walking into shadowed pocket)
+    let targetLen =
+      minLen + Math.floor(rng() * (maxLen - minLen + 1));
+
+    // Walk backwards from neck to grow the winding snake body
+    let cur = { r: chosen.pr, c: chosen.pc, idx: chosen.pIdx };
+    let prevDir = { dr: -chosen.dr, dc: -chosen.dc };
+    let forcedStep = chosen.forcedNext || null;
+
+    while (reversedCells.length < targetLen && totalRemaining > 0) {
+      if (forcedStep && remaining[forcedStep.idx] === 1) {
+        const stepCell = forcedStep;
+        forcedStep = null;
+        reversedCells.push(stepCell);
+        remaining[stepCell.idx] = 0;
+        obstacles[stepCell.idx] = 0;
+        peeledGrid[stepCell.idx] = 1;
+        totalRemaining--;
+        prevDir = { dr: stepCell.r - cur.r, dc: stepCell.c - cur.c };
+        cur = stepCell;
+        continue;
+      }
+
+      // Gather valid next tail steps from `cur`
+      const stepOptions = [];
+      for (const { dr, dc } of DIRS) {
+        const nr = cur.r + dr;
+        const nc = cur.c + dc;
+        if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue;
+        const nIdx = nr * cols + nc;
+        if (remaining[nIdx] !== 1) continue;
+
+        // Tentatively remove nIdx and check how many isolated neighbors it creates
+        remaining[nIdx] = 0;
+        let isolatedNeighbors = [];
+        for (const d2 of DIRS) {
+          const nnr = nr + d2.dr;
+          const nnc = nc + d2.dc;
+          if (nnr >= 0 && nnr < rows && nnc >= 0 && nnc < cols) {
+            const nnIdx = nnr * cols + nnc;
+            if (remaining[nnIdx] === 1 && countNeighbors(nnr, nnc, rows, cols, remaining) === 0) {
+              isolatedNeighbors.push({ r: nnr, c: nnc, idx: nnIdx });
+            }
+          }
+        }
+        remaining[nIdx] = 1;
+
+        // If stepping into (nr, nc) leaves 0 isolated neighbors, or leaves 1 isolated neighbor and we still have length budget to absorb it
+        if (
+          isolatedNeighbors.length === 0 ||
+          (isolatedNeighbors.length === 1 && reversedCells.length + 1 < maxLen + 2)
+        ) {
+          const isTurn = dr !== prevDir.dr || dc !== prevDir.dc;
+          const deg = countNeighbors(nr, nc, rows, cols, remaining);
+          const isShadowed = shadowedByFixed[nIdx] === 1;
+          // Favor 90-degree turns and strongly pull tail into pockets shadowed by fixedObstacleGrid
+          const score =
+            (isShadowed ? 12.0 : 0) +
+            (isTurn ? 2.6 : 1.0) +
+            (deg <= 2 ? 2.0 : 0) +
+            (isolatedNeighbors.length === 0 ? 2.0 : 0) +
+            rng() * 1.5;
+          stepOptions.push({
+            r: nr,
+            c: nc,
+            idx: nIdx,
+            dr,
+            dc,
+            forcedAfter: isolatedNeighbors[0] || null,
+            score,
+          });
+        }
+      }
+
+      if (stepOptions.length === 0) break;
+      stepOptions.sort((a, b) => b.score - a.score);
+      const pick = stepOptions[0];
+
+      const nextCell = { r: pick.r, c: pick.c, idx: pick.idx };
+      if (shadowedByFixed[nextCell.idx] === 1 && targetLen < maxLen + 8) {
+        targetLen++;
+      }
+      reversedCells.push(nextCell);
+      remaining[nextCell.idx] = 0;
+      obstacles[nextCell.idx] = 0;
+      peeledGrid[nextCell.idx] = 1;
+      totalRemaining--;
+      prevDir = { dr: pick.dr, dc: pick.dc };
+      cur = nextCell;
+      forcedStep = pick.forcedAfter;
+    }
+
+    // If any single isolated neighbor was left adjacent to tail or body, absorb it if adjacent to tail
+    let absorbed = true;
+    while (absorbed && totalRemaining > 0) {
+      absorbed = false;
+      for (const { dr, dc } of DIRS) {
+        const nr = cur.r + dr;
+        const nc = cur.c + dc;
+        if (nr >= 0 && nr < rows && nc >= 0 && nc < cols) {
+          const nIdx = nr * cols + nc;
+          if (remaining[nIdx] === 1 && countNeighbors(nr, nc, rows, cols, remaining) === 0) {
+            const tailCell = { r: nr, c: nc, idx: nIdx };
+            reversedCells.push(tailCell);
+            remaining[nIdx] = 0;
+            obstacles[nIdx] = 0;
+            peeledGrid[nIdx] = 1;
+            totalRemaining--;
+            cur = tailCell;
+            absorbed = true;
+            break;
+          }
+        }
+      }
+    }
+
+    // Sweep for any accidental degree-0 single cell in `remaining` and attach it to an adjacent existing snake tail
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const idx = r * cols + c;
+        if (remaining[idx] === 1 && countNeighbors(r, c, rows, cols, remaining) === 0) {
+          orphanCells.push({ r, c, idx });
+          remaining[idx] = 0;
+          obstacles[idx] = 0;
+          totalRemaining--;
+        }
+      }
+    }
+
+    // `reversedCells` is ordered [head, neck, ..., tail]. Reverse it so `cells` is [tail, ..., neck, head]
+    const cells = reversedCells.reverse().map(({ r, c }) => ({ r, c }));
+    const color = ARROW_PALETTE[(nextId - 1 + Math.floor(rng() * 3)) % ARROW_PALETTE.length];
+
+    arrows.push({
+      id: nextId++,
+      cells,
+      head: { r: chosen.hr, c: chosen.hc },
+      dir: { dr: chosen.dr, dc: chosen.dc },
+      color,
+      removed: false,
+    });
+  }
+
+  // Try to attach any orphan single cells to the tail of an orthogonally adjacent arrow
+  for (const orphan of orphanCells) {
+    for (const arrow of arrows) {
+      const tail = arrow.cells[0];
+      if (Math.abs(tail.r - orphan.r) + Math.abs(tail.c - orphan.c) === 1) {
+        // Check that adding orphan to tail does not block arrow's own head ray
+        const dr = arrow.dir.dr;
+        const dc = arrow.dir.dc;
+        const onOwnRay =
+          (dr !== 0 && orphan.c === arrow.head.c && (orphan.r - arrow.head.r) * dr > 0) ||
+          (dc !== 0 && orphan.r === arrow.head.r && (orphan.c - arrow.head.c) * dc > 0);
+        if (!onOwnRay) {
+          arrow.cells.unshift({ r: orphan.r, c: orphan.c });
+          break;
+        }
+      }
+    }
+  }
+
+  // Assign well-distributed colors so adjacent arrows contrast nicely
+  for (let i = 0; i < arrows.length; i++) {
+    arrows[i].color = ARROW_PALETTE[(i * 3 + (seed % 7)) % ARROW_PALETTE.length];
+  }
+
+  return arrows;
+}
+
+/**
+ * 1. Generate a full level from its level definition
+ */
+function generateFullLevel(levelDef, seedOverride = null) {
+  const mask = levelDef.mask;
+  const rows = mask.length;
+  const cols = mask[0].length;
+  const targetGrid = new Uint8Array(rows * cols);
+
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      targetGrid[r * cols + c] = mask[r][c] ? 1 : 0;
+    }
+  }
+
+  const baseSeed = seedOverride !== null ? seedOverride : levelDef.seed;
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const arrows = partitionCellsIntoArrows({
+      rows,
+      cols,
+      targetGrid,
+      minLen: levelDef.minSnakeLen || 3,
+      maxLen: levelDef.maxSnakeLen || 12,
+      seed: baseSeed + attempt * 97,
+      startId: 1,
+    });
+    const check = verifySolvable(arrows, rows, cols);
+    if (check.solvable) {
+      return {
+        rows,
+        cols,
+        mask,
+        arrows,
+        expectedSeconds: levelDef.expectedSeconds,
+      };
+    }
+  }
+
+  throw new Error(`Failed to generate solvable level for level ${levelDef.id}`);
+}
+
+/**
+ * 2. Shuffle only the currently remaining (unremoved) arrows on the board.
+ */
+function shuffleRemainingArrows(currentArrows, rows, cols, seed, levelDef = {}) {
+  const remainingArrows = currentArrows.filter(a => !a.removed);
+  if (remainingArrows.length === 0) return [];
+
+  const targetGrid = new Uint8Array(rows * cols);
+  let cellCount = 0;
+  for (const arrow of remainingArrows) {
+    for (const cell of arrow.cells) {
+      targetGrid[cell.r * cols + cell.c] = 1;
+      cellCount++;
+    }
+  }
+
+  const avgLen = cellCount / remainingArrows.length;
+  const minLen = Math.max(2, Math.floor(avgLen - 1.5));
+  const maxLen = Math.max(minLen + 1, Math.ceil(avgLen + 1.5));
+
+  for (let attempt = 0; attempt < 12; attempt++) {
+    const newArrows = partitionCellsIntoArrows({
+      rows,
+      cols,
+      targetGrid,
+      minLen,
+      maxLen,
+      seed: seed + attempt * 131,
+      startId: 1,
+    });
+    if (verifySolvable(newArrows, rows, cols).solvable) {
+      return newArrows;
+    }
+  }
+  return remainingArrows;
+}
+
+/**
+ * 3. Rule 4 Special Feature:
+ * When the player clicks Shuffle (producing `shuffledArrows` on the remaining cells)
+ * and then immediately clicks Restart, keep `shuffledArrows` intact as the core layout
+ * and generate the missing cleared arrows around them on `fullMask` so the entire board
+ * is complete and 100% solvable!
+ */
+function extendShuffledToFull(shuffledArrows, fullMask, rows, cols, seed, levelDef = {}) {
+  const activeShuffled = shuffledArrows.filter(a => !a.removed).map(a => ({
+    ...a,
+    cells: a.cells.map(c => ({ ...c })),
+    head: { ...a.head },
+    dir: { ...a.dir },
+    removed: false,
+  }));
+
+  const remGrid = new Uint8Array(rows * cols);
+  let maxExistingId = 0;
+  for (const arrow of activeShuffled) {
+    if (arrow.id > maxExistingId) maxExistingId = arrow.id;
+    for (const cell of arrow.cells) {
+      remGrid[cell.r * cols + cell.c] = 1;
+    }
+  }
+
+  // Missing cells = cells in fullMask (or original full board) that are not in remGrid
+  const missingGrid = new Uint8Array(rows * cols);
+  let missingCount = 0;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const idx = r * cols + c;
+      if (fullMask[r][c] === 1 && remGrid[idx] === 0) {
+        missingGrid[idx] = 1;
+        missingCount++;
+      }
+    }
+  }
+
+  if (missingCount === 0) {
+    return activeShuffled;
+  }
+
+  for (let attempt = 0; attempt < 15; attempt++) {
+    const outerArrows = partitionCellsIntoArrows({
+      rows,
+      cols,
+      targetGrid: missingGrid,
+      fixedObstacleGrid: remGrid,
+      minLen: levelDef.minSnakeLen || 3,
+      maxLen: levelDef.maxSnakeLen || 12,
+      seed: seed + attempt * 193,
+      startId: maxExistingId + 1,
+    });
+
+    const combined = [...outerArrows, ...activeShuffled];
+    if (verifySolvable(combined, rows, cols).solvable) {
+      return combined;
+    }
+  }
+
+  // Ultimate fallback: if an inner pocket had a mutual ray dependency, regenerate full board with seed
+  return generateFullLevel(
+    {
+      id: levelDef.id || 0,
+      mask: fullMask,
+      minSnakeLen: levelDef.minSnakeLen || 3,
+      maxSnakeLen: levelDef.maxSnakeLen || 12,
+      expectedSeconds: levelDef.expectedSeconds || 180,
+      seed,
+    },
+    seed
+  ).arrows;
+}
+
+
+// === [src/audio/soundAndHaptics.js] ===
+/**
+ * Web Audio Synthesizer & Mobile Haptics Controller
+ * Zero external audio assets needed — crisp, responsive procedural sound effects + vibration.
+ */
+
+class FeedbackController {
+  constructor() {
+    this.ctx = null;
+    this.soundEnabled = true;
+    this.vibrateEnabled = true;
+    this.comboCount = 0;
+    this.lastClearTime = 0;
+  }
+
+  initContext() {
+    if (!this.ctx) {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (AudioCtx) {
+        this.ctx = new AudioCtx();
+      }
+    }
+    if (this.ctx && this.ctx.state === 'suspended') {
+      this.ctx.resume().catch(() => {});
+    }
+  }
+
+  /**
+   * Trigger phone vibration (Rule 2: vibrate on blocked arrow tap)
+   */
+  vibrate(pattern = [45, 30, 55]) {
+    if (!this.vibrateEnabled) return;
+    try {
+      if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+        navigator.vibrate(pattern);
+      }
+    } catch (_) {
+      // Ignore if unsupported by browser
+    }
+  }
+
+  /**
+   * Crisp, satisfying arrow launch / slither-out sound
+   */
+  playArrowClear() {
+    if (!this.soundEnabled) return;
+    this.initContext();
+    if (!this.ctx) return;
+
+    const now = performance.now();
+    if (now - this.lastClearTime < 2200) {
+      this.comboCount = Math.min(this.comboCount + 1, 10);
+    } else {
+      this.comboCount = 0;
+    }
+    this.lastClearTime = now;
+
+    const t = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    // Pentatonic scale progression for combo satisfaction
+    const baseFreqs = [392.0, 440.0, 493.88, 587.33, 659.25, 783.99, 880.0, 987.77, 1174.66];
+    const startFreq = baseFreqs[this.comboCount % baseFreqs.length];
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(startFreq, t);
+    osc.frequency.exponentialRampToValueAtTime(startFreq * 1.45, t + 0.14);
+
+    gain.gain.setValueAtTime(0.001, t);
+    gain.gain.linearRampToValueAtTime(0.18, t + 0.015);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
+
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    osc.start(t);
+    osc.stop(t + 0.17);
+  }
+
+  /**
+   * Rule 2: Blocked arrow tactile vibration + soft wooden thud (never punishing, just clear feedback)
+   */
+  triggerBlockedFeedback() {
+    this.vibrate([45, 30, 55]);
+    if (!this.soundEnabled) return;
+    this.initContext();
+    if (!this.ctx) return;
+
+    const t = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(145, t);
+    osc.frequency.exponentialRampToValueAtTime(72, t + 0.09);
+
+    gain.gain.setValueAtTime(0.001, t);
+    gain.gain.linearRampToValueAtTime(0.22, t + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.11);
+
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    osc.start(t);
+    osc.stop(t + 0.12);
+  }
+
+  /**
+   * Hint button sparkle sound
+   */
+  playHint() {
+    if (!this.soundEnabled) return;
+    this.initContext();
+    if (!this.ctx) return;
+
+    const t = this.ctx.currentTime;
+    [587.33, 880.0].forEach((freq, i) => {
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, t + i * 0.06);
+      gain.gain.setValueAtTime(0.001, t + i * 0.06);
+      gain.gain.linearRampToValueAtTime(0.14, t + i * 0.06 + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + i * 0.06 + 0.22);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(t + i * 0.06);
+      osc.stop(t + i * 0.06 + 0.23);
+    });
+  }
+
+  /**
+   * Shuffle button ripple sound
+   */
+  playShuffle() {
+    if (!this.soundEnabled) return;
+    this.initContext();
+    if (!this.ctx) return;
+
+    const t = this.ctx.currentTime;
+    const notes = [330, 392, 493.88, 587.33];
+    notes.forEach((freq, idx) => {
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, t + idx * 0.04);
+      gain.gain.setValueAtTime(0.001, t + idx * 0.04);
+      gain.gain.linearRampToValueAtTime(0.12, t + idx * 0.04 + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + idx * 0.04 + 0.14);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(t + idx * 0.04);
+      osc.stop(t + idx * 0.04 + 0.15);
+    });
+  }
+
+  /**
+   * Star lighting pop sound (for Victory Modal star animation 1, 2, 3)
+   */
+  playStarPop(starIndex = 0) {
+    this.vibrate(25);
+    if (!this.soundEnabled) return;
+    this.initContext();
+    if (!this.ctx) return;
+
+    const t = this.ctx.currentTime;
+    const freqs = [523.25, 659.25, 783.99, 1046.5];
+    const freq = freqs[Math.min(starIndex, freqs.length - 1)];
+
+    const osc = this.ctx.createOscillator();
+    const osc2 = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'sine';
+    osc2.type = 'triangle';
+    osc.frequency.setValueAtTime(freq, t);
+    osc2.frequency.setValueAtTime(freq * 1.5, t);
+
+    gain.gain.setValueAtTime(0.001, t);
+    gain.gain.linearRampToValueAtTime(0.2, t + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.38);
+
+    osc.connect(gain);
+    osc2.connect(gain);
+    gain.connect(this.ctx.destination);
+
+    osc.start(t);
+    osc2.start(t);
+    osc.stop(t + 0.4);
+    osc2.stop(t + 0.4);
+  }
+}
+const feedback = new FeedbackController();
+
+
+// === [src/renderer/canvasView.js] ===
+/**
+ * High-DPI Canvas Renderer & Multi-Touch Zoom/Pan Controller for 《一箭又一箭》
+ * Features:
+ * - Deep slate night mode (#2b3244) & crisp day mode with equal-spaced grid dots
+ * - True snake-slithering trajectory interpolation along all body bends
+ * - Blocked arrow damped harmonic shake animation (keeps original color, never turns red)
+ * - Hint glowing pulse animation
+ * - Pinch-to-zoom, pan, and bottom zoom slider synchronization
+ */
+class BoardCanvasView {
+  constructor(canvas, { onArrowTap, onZoomChange }) {
+    this.canvas = canvas;
+    this.ctx = canvas.getContext('2d');
+    this.onArrowTap = onArrowTap;
+    this.onZoomChange = onZoomChange;
+
+    // Board state
+    this.rows = 10;
+    this.cols = 10;
+    this.mask = [];
+    this.arrows = [];
+    this.hintArrowId = null;
+    this.showGuideLines = false;
+    this.theme = 'dark'; // 'dark' | 'light'
+
+    // Active animations
+    // slitheringArrows: Map<arrowId, { arrow, progressSteps, speedStepsPerSec }>
+    this.slitheringArrows = new Map();
+    // shakingArrows: Map<arrowId, { startTime, duration, dir, freeSteps, blockerCell }>
+    this.shakingArrows = new Map();
+    // shuffleTransition: { startTime, duration }
+    this.shuffleTransition = null;
+
+    // Viewport & Zoom/Pan transform
+    this.zoom = 1.0;
+    this.minZoom = 0.85;
+    this.maxZoom = 4.0;
+    this.panX = 0;
+    this.panY = 0;
+    this.baseCellSize = 24;
+    this.boardOriginX = 0;
+    this.boardOriginY = 0;
+
+    // Pointer / Touch tracking for Pinch-to-Zoom & Pan vs Tap
+    this.activePointers = new Map();
+    this.isDragging = false;
+    this.dragStartX = 0;
+    this.dragStartY = 0;
+    this.initialPanX = 0;
+    this.initialPanY = 0;
+    this.initialPinchDist = 0;
+    this.initialPinchZoom = 1;
+    this.initialPinchCenter = { x: 0, y: 0 };
+    this.totalPointerMove = 0;
+
+    this.rafId = null;
+    this.lastFrameTime = performance.now();
+
+    this.bindEvents();
+    this.resize();
+    this.startLoop();
+  }
+
+  setBoard({ rows, cols, mask, arrows }) {
+    this.rows = rows;
+    this.cols = cols;
+    this.mask = mask;
+    this.arrows = arrows;
+    this.hintArrowId = null;
+    this.slitheringArrows.clear();
+    this.shakingArrows.clear();
+    this.resetCamera();
+    this.triggerShuffleWave();
+  }
+
+  updateArrows(arrows, animateWave = false) {
+    this.arrows = arrows;
+    this.hintArrowId = null;
+    this.slitheringArrows.clear();
+    this.shakingArrows.clear();
+    if (animateWave) {
+      this.triggerShuffleWave();
+    }
+  }
+
+  triggerShuffleWave() {
+    this.shuffleTransition = {
+      startTime: performance.now(),
+      duration: 360,
+    };
+  }
+
+  setTheme(theme) {
+    this.theme = theme;
+  }
+
+  setGuideLines(enabled) {
+    this.showGuideLines = enabled;
+  }
+
+  setHintArrow(arrowId) {
+    this.hintArrowId = arrowId;
+  }
+
+  resetCamera() {
+    this.zoom = 1.0;
+    this.panX = 0;
+    this.panY = 0;
+    this.computeLayout();
+    if (this.onZoomChange) this.onZoomChange(this.zoom);
+  }
+
+  setZoom(newZoom, anchorScreenX = null, anchorScreenY = null) {
+    const clamped = Math.max(this.minZoom, Math.min(this.maxZoom, newZoom));
+    const rect = this.canvas.getBoundingClientRect();
+    const cx = anchorScreenX !== null ? anchorScreenX : rect.width / 2;
+    const cy = anchorScreenY !== null ? anchorScreenY : rect.height / 2;
+
+    // Keep the point under (cx, cy) stationary during zoom
+    const worldX = (cx - rect.width / 2 - this.panX) / this.zoom;
+    const worldY = (cy - rect.height / 2 - this.panY) / this.zoom;
+
+    this.zoom = clamped;
+    this.panX = cx - rect.width / 2 - worldX * this.zoom;
+    this.panY = cy - rect.height / 2 - worldY * this.zoom;
+    this.clampPan();
+
+    if (this.onZoomChange) this.onZoomChange(this.zoom);
+  }
+
+  clampPan() {
+    const rect = this.canvas.getBoundingClientRect();
+    const maxOffset = Math.max(rect.width, rect.height) * 0.55 * this.zoom;
+    this.panX = Math.max(-maxOffset, Math.min(maxOffset, this.panX));
+    this.panY = Math.max(-maxOffset, Math.min(maxOffset, this.panY));
+  }
+
+  resize() {
+    const rect = this.canvas.parentElement.getBoundingClientRect();
+    const dpr = Math.min(window.devicePixelRatio || 1, 3);
+    this.canvas.width = Math.max(1, Math.floor(rect.width * dpr));
+    this.canvas.height = Math.max(1, Math.floor(rect.height * dpr));
+    this.canvas.style.width = `${rect.width}px`;
+    this.canvas.style.height = `${rect.height}px`;
+    this.dpr = dpr;
+    this.computeLayout();
+  }
+
+  computeLayout() {
+    const width = this.canvas.width / (this.dpr || 1);
+    const height = this.canvas.height / (this.dpr || 1);
+    const padX = 10;
+    const padY = 10;
+    const availW = Math.max(120, width - padX * 2);
+    const availH = Math.max(120, height - padY * 2);
+
+    this.baseCellSize = Math.min(availW / this.cols, availH / this.rows, 42);
+    const boardW = this.cols * this.baseCellSize;
+    const boardH = this.rows * this.baseCellSize;
+    this.boardOriginX = -boardW / 2;
+    this.boardOriginY = -boardH / 2;
+  }
+
+  /**
+   * Launch an arrow along its snake trajectory out of the board
+   */
+  animateArrowClear(arrow, onComplete) {
+    if (this.hintArrowId === arrow.id) {
+      this.hintArrowId = null;
+    }
+    const maxExitDist = Math.max(this.rows, this.cols) + arrow.cells.length + 3;
+    const speed = Math.max(24, Math.min(42, 18 + arrow.cells.length * 1.6));
+    this.slitheringArrows.set(arrow.id, {
+      arrow,
+      progressSteps: 0,
+      maxSteps: maxExitDist,
+      speedStepsPerSec: speed,
+      onComplete,
+    });
+  }
+
+  /**
+   * Rule 2: Shake a blocked arrow in place (with its connected line) without turning it red
+   */
+  animateArrowShake(arrow, checkResult) {
+    this.shakingArrows.set(arrow.id, {
+      startTime: performance.now(),
+      duration: 440,
+      dir: arrow.dir,
+      freeSteps: checkResult.distanceToBlocker || 0,
+      blockerCell: checkResult.blockerCell || null,
+    });
+  }
+
+  /**
+   * Convert screen (clientX, clientY) to board grid coordinates { r, c, distFromCenter }
+   */
+  screenToGrid(clientX, clientY) {
+    const rect = this.canvas.getBoundingClientRect();
+    const sx = clientX - rect.left;
+    const sy = clientY - rect.top;
+
+    const worldX = (sx - rect.width / 2 - this.panX) / this.zoom;
+    const worldY = (sy - rect.height / 2 - this.panY) / this.zoom;
+
+    const localX = worldX - this.boardOriginX;
+    const localY = worldY - this.boardOriginY;
+
+    const cFloat = localX / this.baseCellSize - 0.5;
+    const rFloat = localY / this.baseCellSize - 0.5;
+
+    return {
+      r: Math.round(rFloat),
+      c: Math.round(cFloat),
+      rFloat,
+      cFloat,
+    };
+  }
+
+  /**
+   * Find the arrow closest to the tapped grid position
+   */
+  findArrowAtScreenPos(clientX, clientY) {
+    const { rFloat, cFloat } = this.screenToGrid(clientX, clientY);
+
+    let bestArrow = null;
+    let bestDist = 0.72; // Generous touch radius in grid units
+
+    for (const arrow of this.arrows) {
+      if (arrow.removed || this.slitheringArrows.has(arrow.id)) continue;
+
+      // Check distance to every segment of the arrow polyline
+      const cells = arrow.cells;
+      for (let i = 0; i < cells.length; i++) {
+        const dPoint = Math.hypot(rFloat - cells[i].r, cFloat - cells[i].c);
+        // Slightly prioritize arrowhead taps when fingers are close
+        const headBonus = i === cells.length - 1 ? 0.92 : 1.0;
+        if (dPoint * headBonus < bestDist) {
+          bestDist = dPoint * headBonus;
+          bestArrow = arrow;
+        }
+        if (i + 1 < cells.length) {
+          const a = cells[i];
+          const b = cells[i + 1];
+          const l2 = (b.r - a.r) ** 2 + (b.c - a.c) ** 2;
+          if (l2 > 0) {
+            const t = Math.max(
+              0,
+              Math.min(1, ((rFloat - a.r) * (b.r - a.r) + (cFloat - a.c) * (b.c - a.c)) / l2)
+            );
+            const projR = a.r + t * (b.r - a.r);
+            const projC = a.c + t * (b.c - a.c);
+            const dSeg = Math.hypot(rFloat - projR, cFloat - projC);
+            if (dSeg < bestDist) {
+              bestDist = dSeg;
+              bestArrow = arrow;
+            }
+          }
+        }
+      }
+    }
+
+    return bestArrow;
+  }
+
+  bindEvents() {
+    window.addEventListener('resize', () => this.resize());
+
+    this.canvas.addEventListener('pointerdown', e => {
+      this.canvas.setPointerCapture(e.pointerId);
+      this.activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+      if (this.activePointers.size === 1) {
+        this.isDragging = false;
+        this.dragStartX = e.clientX;
+        this.dragStartY = e.clientY;
+        this.initialPanX = this.panX;
+        this.initialPanY = this.panY;
+        this.totalPointerMove = 0;
+      } else if (this.activePointers.size === 2) {
+        this.isDragging = true;
+        const pts = Array.from(this.activePointers.values());
+        this.initialPinchDist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
+        this.initialPinchZoom = this.zoom;
+        const rect = this.canvas.getBoundingClientRect();
+        this.initialPinchCenter = {
+          x: (pts[0].x + pts[1].x) / 2 - rect.left,
+          y: (pts[0].y + pts[1].y) / 2 - rect.top,
+        };
+      }
+    });
+
+    this.canvas.addEventListener('pointermove', e => {
+      if (!this.activePointers.has(e.pointerId)) return;
+      const prev = this.activePointers.get(e.pointerId);
+      const stepMove = Math.hypot(e.clientX - prev.x, e.clientY - prev.y);
+      this.totalPointerMove += stepMove;
+      this.activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+      if (this.activePointers.size === 1 && !this.isDragging) {
+        const dx = e.clientX - this.dragStartX;
+        const dy = e.clientY - this.dragStartY;
+        if (Math.hypot(dx, dy) > 8) {
+          this.isDragging = true;
+        }
+      }
+
+      if (this.activePointers.size === 1 && this.isDragging) {
+        this.panX = this.initialPanX + (e.clientX - this.dragStartX);
+        this.panY = this.initialPanY + (e.clientY - this.dragStartY);
+        this.clampPan();
+      } else if (this.activePointers.size === 2) {
+        const pts = Array.from(this.activePointers.values());
+        const dist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
+        if (this.initialPinchDist > 10) {
+          const scale = dist / this.initialPinchDist;
+          this.setZoom(
+            this.initialPinchZoom * scale,
+            this.initialPinchCenter.x,
+            this.initialPinchCenter.y
+          );
+        }
+      }
+    });
+
+    const handlePointerUp = e => {
+      if (!this.activePointers.has(e.pointerId)) return;
+      this.activePointers.delete(e.pointerId);
+
+      if (this.activePointers.size === 0) {
+        if (!this.isDragging && this.totalPointerMove < 12) {
+          const hitArrow = this.findArrowAtScreenPos(e.clientX, e.clientY);
+          if (hitArrow && this.onArrowTap) {
+            this.onArrowTap(hitArrow);
+          }
+        }
+        this.isDragging = false;
+      } else if (this.activePointers.size === 1) {
+        // Transition smoothly from 2-finger pinch back to 1-finger pan
+        const remaining = Array.from(this.activePointers.values())[0];
+        this.dragStartX = remaining.x;
+        this.dragStartY = remaining.y;
+        this.initialPanX = this.panX;
+        this.initialPanY = this.panY;
+      }
+    };
+
+    this.canvas.addEventListener('pointerup', handlePointerUp);
+    this.canvas.addEventListener('pointercancel', handlePointerUp);
+
+    // Desktop mouse wheel zoom support
+    this.canvas.addEventListener(
+      'wheel',
+      e => {
+        e.preventDefault();
+        const rect = this.canvas.getBoundingClientRect();
+        const factor = e.deltaY < 0 ? 1.12 : 0.89;
+        this.setZoom(this.zoom * factor, e.clientX - rect.left, e.clientY - rect.top);
+      },
+      { passive: false }
+    );
+  }
+
+  startLoop() {
+    const tick = now => {
+      const dt = Math.min(0.05, (now - this.lastFrameTime) / 1000);
+      this.lastFrameTime = now;
+      this.updateAnimations(dt, now);
+      this.render(now);
+      this.rafId = requestAnimationFrame(tick);
+    };
+    this.rafId = requestAnimationFrame(tick);
+  }
+
+  updateAnimations(dt, now) {
+    // Update slithering arrows
+    for (const [id, state] of this.slitheringArrows.entries()) {
+      state.progressSteps += state.speedStepsPerSec * dt;
+      if (state.progressSteps >= state.maxSteps) {
+        this.slitheringArrows.delete(id);
+        if (state.onComplete) state.onComplete(state.arrow);
+      }
+    }
+
+    // Expire finished shake animations
+    for (const [id, shake] of this.shakingArrows.entries()) {
+      if (now - shake.startTime >= shake.duration) {
+        this.shakingArrows.delete(id);
+      }
+    }
+
+    if (
+      this.shuffleTransition &&
+      now - this.shuffleTransition.startTime >= this.shuffleTransition.duration
+    ) {
+      this.shuffleTransition = null;
+    }
+  }
+
+  /**
+   * Compute the interpolated polyline points (in grid coordinates) of an arrow
+   * as it slithers forward by `progressSteps` along its own body and exit ray.
+   */
+  getSlitheredGridPoints(arrow, progressSteps = 0) {
+    const baseCells = arrow.cells;
+    const L = baseCells.length;
+    if (progressSteps <= 0) {
+      return {
+        points: baseCells.map(c => ({ r: c.r, c: c.c })),
+        dir: arrow.dir,
+      };
+    }
+
+    // Build extended trajectory: tail -> ... -> head -> ray steps
+    const totalNeeded = Math.ceil(progressSteps) + L + 2;
+    const path = baseCells.map(c => ({ r: c.r, c: c.c }));
+    const head = baseCells[L - 1];
+    const { dr, dc } = arrow.dir;
+    for (let k = 1; k <= totalNeeded; k++) {
+      path.push({ r: head.r + k * dr, c: head.c + k * dc });
+    }
+
+    const iTail = Math.floor(progressSteps);
+    const frac = progressSteps - iTail;
+    const iHead = iTail + L - 1;
+
+    const points = [];
+    // Interpolated tail position
+    const pTail0 = path[iTail];
+    const pTail1 = path[iTail + 1];
+    points.push({
+      r: pTail0.r + (pTail1.r - pTail0.r) * frac,
+      c: pTail0.c + (pTail1.c - pTail0.c) * frac,
+    });
+
+    // Intermediate corners along the snake body
+    for (let idx = iTail + 1; idx <= iHead; idx++) {
+      points.push(path[idx]);
+    }
+
+    // Interpolated head position
+    if (frac > 0.0001) {
+      const pHead0 = path[iHead];
+      const pHead1 = path[iHead + 1];
+      points.push({
+        r: pHead0.r + (pHead1.r - pHead0.r) * frac,
+        c: pHead0.c + (pHead1.c - pHead0.c) * frac,
+      });
+    }
+
+    return {
+      points,
+      dir: arrow.dir,
+    };
+  }
+
+  gridToWorld(r, c) {
+    return {
+      x: this.boardOriginX + (c + 0.5) * this.baseCellSize,
+      y: this.boardOriginY + (r + 0.5) * this.baseCellSize,
+    };
+  }
+
+  render(now) {
+    const ctx = this.ctx;
+    const dpr = this.dpr || 1;
+    const width = this.canvas.width / dpr;
+    const height = this.canvas.height / dpr;
+
+    ctx.save();
+    ctx.scale(dpr, dpr);
+
+    // 1. Background fill
+    const isDark = this.theme === 'dark';
+    ctx.fillStyle = isDark ? '#2b3244' : '#eef2f9';
+    ctx.fillRect(0, 0, width, height);
+
+    // 2. Apply camera transform (center + pan + zoom)
+    ctx.translate(width / 2 + this.panX, height / 2 + this.panY);
+    ctx.scale(this.zoom, this.zoom);
+
+    const cs = this.baseCellSize;
+
+    // 3. Draw equal-spaced subtle dots across the board grid (Screenshot 1 & 2 style)
+    const dotRadius = Math.max(1.3, cs * 0.068);
+    ctx.fillStyle = isDark ? 'rgba(138, 153, 189, 0.34)' : 'rgba(110, 126, 160, 0.36)';
+    ctx.beginPath();
+    for (let r = 0; r < this.rows; r++) {
+      for (let c = 0; c < this.cols; c++) {
+        // Draw dots across the entire puzzle grid bounding area so cleared spaces & margins show the dot matrix
+        const { x, y } = this.gridToWorld(r, c);
+        ctx.moveTo(x + dotRadius, y);
+        ctx.arc(x, y, dotRadius, 0, Math.PI * 2);
+      }
+    }
+    ctx.fill();
+
+    // 4. Optional Guide Lines (辅助线 button at bottom right of Screenshot 1 & 2)
+    if (this.showGuideLines) {
+      ctx.save();
+      ctx.strokeStyle = isDark ? 'rgba(255, 255, 255, 0.14)' : 'rgba(43, 50, 68, 0.14)';
+      ctx.lineWidth = Math.max(1, cs * 0.045);
+      ctx.setLineDash([cs * 0.16, cs * 0.16]);
+      for (const arrow of this.arrows) {
+        if (arrow.removed || this.slitheringArrows.has(arrow.id)) continue;
+        const headW = this.gridToWorld(arrow.head.r, arrow.head.c);
+        const endR = arrow.head.r + arrow.dir.dr * Math.max(this.rows, this.cols);
+        const endC = arrow.head.c + arrow.dir.dc * Math.max(this.rows, this.cols);
+        const endW = this.gridToWorld(endR, endC);
+        ctx.beginPath();
+        ctx.moveTo(headW.x, headW.y);
+        ctx.lineTo(endW.x, endW.y);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    // 5. Draw all active & slithering arrows
+    for (const arrow of this.arrows) {
+      if (arrow.removed && !this.slitheringArrows.has(arrow.id)) continue;
+      this.drawSingleArrow(ctx, arrow, cs, now);
+    }
+
+    ctx.restore();
+  }
+
+  drawSingleArrow(ctx, arrow, cs, now) {
+    const slitherState = this.slitheringArrows.get(arrow.id);
+    const shakeState = this.shakingArrows.get(arrow.id);
+    const isHinted = this.hintArrowId === arrow.id;
+
+    let progressSteps = slitherState ? slitherState.progressSteps : 0;
+
+    // Shake displacement (Rule 2: never turns red, vibrates & shakes visually in original color!)
+    let shakeOffsetX = 0;
+    let shakeOffsetY = 0;
+    if (shakeState) {
+      const elapsed = (now - shakeState.startTime) / 1000;
+      const progress = Math.min(1, (now - shakeState.startTime) / shakeState.duration);
+      const damping = Math.pow(1 - progress, 1.8);
+
+      // Lunge slightly toward the obstacle if there is free space, plus rapid orthogonal + axial jitter
+      const lungeBounce = Math.sin(progress * Math.PI) * Math.min(0.28, shakeState.freeSteps * 0.18);
+      progressSteps += lungeBounce;
+
+      const wave = Math.sin(elapsed * 58) * damping * cs * 0.18;
+      const crossWave = Math.cos(elapsed * 44) * damping * cs * 0.11;
+      shakeOffsetX = shakeState.dir.dc * wave + shakeState.dir.dr * crossWave;
+      shakeOffsetY = shakeState.dir.dr * wave + shakeState.dir.dc * crossWave;
+    }
+
+    // Shuffle wave scale-in animation
+    let scaleAlpha = 1.0;
+    if (this.shuffleTransition) {
+      const t = Math.min(
+        1,
+        (now - this.shuffleTransition.startTime) / this.shuffleTransition.duration
+      );
+      scaleAlpha = 0.35 + 0.65 * Math.sin((t * Math.PI) / 2);
+    }
+
+    const { points, dir } = this.getSlitheredGridPoints(arrow, progressSteps);
+    if (points.length < 2) return;
+
+    const worldPts = points.map(p => {
+      const w = this.gridToWorld(p.r, p.c);
+      return { x: w.x + shakeOffsetX, y: w.y + shakeOffsetY };
+    });
+
+    // Shorten the very last segment slightly so the line tucks cleanly into the arrowhead base
+    const headPt = { ...worldPts[worldPts.length - 1] };
+    const lineEndOffset = cs * 0.06;
+    worldPts[worldPts.length - 1] = {
+      x: headPt.x - dir.dc * lineEndOffset,
+      y: headPt.y - dir.dr * lineEndOffset,
+    };
+
+    ctx.save();
+    ctx.globalAlpha = scaleAlpha;
+
+    const strokeWidth = Math.max(1.5, cs * 0.23);
+    const cornerRadius = cs * 0.14;
+
+    // Hint glow aura
+    if (isHinted) {
+      const pulse = 0.5 + 0.5 * Math.sin(now * 0.009);
+      ctx.save();
+      ctx.shadowColor = '#ffffff';
+      ctx.shadowBlur = cs * (0.55 + pulse * 0.45);
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = strokeWidth * (1.45 + pulse * 0.35);
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      this.traceRoundedPolyline(ctx, worldPts, cornerRadius);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // Subtle drop shadow for crisp depth on dark slate background
+    ctx.save();
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.28)';
+    ctx.shadowBlur = cs * 0.12;
+    ctx.shadowOffsetY = cs * 0.05;
+
+    // Main arrow body stroke (always keeps arrow.color, never turns red on error!)
+    ctx.strokeStyle = arrow.color;
+    ctx.lineWidth = strokeWidth;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    this.traceRoundedPolyline(ctx, worldPts, cornerRadius);
+    ctx.stroke();
+
+    // Draw crisp triangular arrowhead at `headPt` pointing in `dir`
+    const tipLength = cs * 0.32;
+    const backLength = cs * 0.16;
+    const halfWing = cs * 0.24;
+
+    const tipX = headPt.x + dir.dc * tipLength;
+    const tipY = headPt.y + dir.dr * tipLength;
+    const baseCenterX = headPt.x - dir.dc * backLength;
+    const baseCenterY = headPt.y - dir.dr * backLength;
+
+    // Perpendicular vector (-dir.dr, dir.dc)
+    const perpX = -dir.dr;
+    const perpY = dir.dc;
+
+    const leftX = baseCenterX + perpX * halfWing;
+    const leftY = baseCenterY + perpY * halfWing;
+    const rightX = baseCenterX - perpX * halfWing;
+    const rightY = baseCenterY - perpY * halfWing;
+
+    ctx.fillStyle = arrow.color;
+    ctx.beginPath();
+    ctx.moveTo(tipX, tipY);
+    ctx.lineTo(leftX, leftY);
+    ctx.lineTo(rightX, rightY);
+    ctx.closePath();
+    ctx.fill();
+    ctx.lineWidth = Math.max(1.2, cs * 0.06);
+    ctx.strokeStyle = arrow.color;
+    ctx.stroke();
+    ctx.restore();
+
+    // If hinted, draw a subtle white inner highlight core
+    if (isHinted) {
+      const pulse = 0.5 + 0.5 * Math.sin(now * 0.009);
+      ctx.strokeStyle = `rgba(255, 255, 255, ${0.45 + pulse * 0.45})`;
+      ctx.lineWidth = strokeWidth * 0.42;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      this.traceRoundedPolyline(ctx, worldPts, cornerRadius);
+      ctx.stroke();
+    }
+
+    ctx.restore();
+  }
+
+  /**
+   * Trace a polyline with smooth rounded 90-degree corners matching Screenshot 2
+   */
+  traceRoundedPolyline(ctx, pts, radius) {
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (let i = 1; i < pts.length - 1; i++) {
+      const prev = pts[i - 1];
+      const cur = pts[i];
+      const next = pts[i + 1];
+      const d1 = Math.hypot(cur.x - prev.x, cur.y - prev.y);
+      const d2 = Math.hypot(next.x - cur.x, next.y - cur.y);
+      const r = Math.min(radius, d1 * 0.45, d2 * 0.45);
+      if (r > 0.5) {
+        ctx.arcTo(cur.x, cur.y, next.x, next.y, r);
+      } else {
+        ctx.lineTo(cur.x, cur.y);
+      }
+    }
+    const last = pts[pts.length - 1];
+    ctx.lineTo(last.x, last.y);
+  }
+}
+
+
+// === [src/ui/app.js] ===
+/**
+ * Main Application Controller for 《一箭又一箭》 纯净定制版
+ */
+
+
+
+
+
+const STORAGE_KEY = 'arrow_by_arrow_custom_save_v1';
+
+function cloneArrows(arrows) {
+  return arrows.map(a => ({
+    ...a,
+    cells: a.cells.map(c => ({ r: c.r, c: c.c })),
+    head: { r: a.head.r, c: a.head.c },
+    dir: { dr: a.dir.dr, dc: a.dir.dc },
+    removed: Boolean(a.removed),
+  }));
+}
+function formatTime(seconds) {
+  const s = Math.max(0, Math.floor(seconds));
+  const m = Math.floor(s / 60);
+  const rem = s % 60;
+  return `${String(m).padStart(2, '0')}:${String(rem).padStart(2, '0')}`;
+}
+
+/**
+ * Generate SVG markup for a 3D faceted Gold or Grey Star (Mahjong Titan Screenshot 3 & 4 style)
+ */
+function createStarSVG(isGold = false, extraClass = '') {
+  const uid = Math.random().toString(36).slice(2, 8);
+  const cTop = isGold ? '#fff380' : '#9ca3af';
+  const cMid = isGold ? '#f7b500' : '#6b7280';
+  const cBot = isGold ? '#c97a00' : '#4b5563';
+  const stroke = isGold ? '#b46900' : '#374151';
+
+  return `
+    <svg viewBox="0 0 100 100" class="${extraClass}">
+      <defs>
+        <linearGradient id="sg_${uid}" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="${cTop}" />
+          <stop offset="55%" stop-color="${cMid}" />
+          <stop offset="100%" stop-color="${cBot}" />
+        </linearGradient>
+      </defs>
+      <polygon
+        points="50,5 63,35 95,38 70,59 78,91 50,73 22,91 30,59 5,38 37,35"
+        fill="url(#sg_${uid})"
+        stroke="${stroke}"
+        stroke-width="3"
+        stroke-linejoin="round"
+      />
+      <polygon
+        points="50,5 63,35 50,52 37,35"
+        fill="rgba(255,255,255,0.28)"
+      />
+      <polygon
+        points="50,52 95,38 70,59"
+        fill="rgba(255,255,255,0.16)"
+      />
+      <polygon
+        points="50,52 22,91 30,59"
+        fill="rgba(0,0,0,0.14)"
+      />
+    </svg>
+  `;
+}
+
+class ArrowGameApp {
+  constructor() {
+    this.saveData = this.loadSaveData();
+    this.currentLevelIdx = this.saveData.lastLevelIdx || 0;
+    this.boardFilter = 'all'; // 'all' | 'finished' | 'unfinished'
+    this.activeMenuTab = 'boards'; // 'boards' | 'goals' | 'options'
+
+    // Active game session state
+    this.levelDef = LEVEL_DEFINITIONS[this.currentLevelIdx];
+    this.rows = 10;
+    this.cols = 10;
+    this.mask = [];
+    this.arrows = [];
+    // `restartBaseArrows` stores the full-board layout to use when clicking Restart.
+    // Whenever Shuffle is clicked, `restartBaseArrows` is updated via `extendShuffledToFull`
+    // so that clicking Restart rebuilds the full board based on the shuffled layout!
+    this.restartBaseArrows = [];
+    this.shuffleCount = 0;
+
+    // 3-Star tracking for current round
+    this.usedShuffle = false;
+    this.usedHint = false;
+    this.elapsedSeconds = 0;
+    this.expectedSeconds = 120;
+    this.isPaused = false;
+    this.isCompleted = false;
+    this.timerInterval = null;
+    this.toastTimeout = null;
+
+    this.initDOM();
+    this.initCanvas();
+    this.applyTheme(this.saveData.theme || 'dark');
+    this.startLevel(this.currentLevelIdx, true);
+    this.startTimerLoop();
+  }
+
+  loadSaveData() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        return {
+          lastLevelIdx: parsed.lastLevelIdx || 0,
+          theme: parsed.theme || 'dark',
+          sound: parsed.sound !== false,
+          vibrate: parsed.vibrate !== false,
+          // levelRecords: { [levelId]: { finished: boolean, stars: 0..3, bestTime: number } }
+          levelRecords: parsed.levelRecords || {},
+        };
+      }
+    } catch (_) {}
+    return {
+      lastLevelIdx: 0,
+      theme: 'dark',
+      sound: true,
+      vibrate: true,
+      levelRecords: {},
+    };
+  }
+
+  persistSaveData() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.saveData));
+    } catch (_) {}
+  }
+
+  getTotalStars() {
+    let sum = 0;
+    for (const rec of Object.values(this.saveData.levelRecords)) {
+      if (rec && typeof rec.stars === 'number') {
+        sum += rec.stars;
+      }
+    }
+    return sum;
+  }
+
+  initDOM() {
+    this.appEl = document.getElementById('app');
+    this.canvasEl = document.getElementById('boardCanvas');
+
+    // In-game top action buttons (Hint, Shuffle, Restart, Boards)
+    document.getElementById('btnHint').addEventListener('click', () => this.handleHint());
+    document.getElementById('btnShuffle').addEventListener('click', () => this.handleShuffle());
+    document.getElementById('btnRestart').addEventListener('click', () => this.handleRestart());
+    document.getElementById('btnOpenBoards').addEventListener('click', () => this.openOverlay('boards'));
+
+    // Subheader controls
+    document.getElementById('btnSettingsQuick').addEventListener('click', () => this.openOverlay('options'));
+    document.getElementById('btnThemeToggle').addEventListener('click', () => {
+      const next = this.saveData.theme === 'dark' ? 'light' : 'dark';
+      this.applyTheme(next);
+    });
+    document.getElementById('btnFullscreen').addEventListener('click', () => this.toggleFullscreen());
+
+    this.elLevelTitle = document.getElementById('levelTitleText');
+    this.elTimerText = document.getElementById('timerText');
+    this.elExpectedText = document.getElementById('expectedTimeText');
+    this.elRemainBadge = document.getElementById('remainBadge');
+    this.elLiveStarShuffle = document.getElementById('liveStarShuffle');
+    this.elLiveStarHint = document.getElementById('liveStarHint');
+    this.elLiveStarTime = document.getElementById('liveStarTime');
+    this.elToast = document.getElementById('statusToast');
+
+    // Bottom bar controls (Reset View / Hint, Zoom Slider, Guide Lines)
+    this.elZoomSlider = document.getElementById('zoomSlider');
+    document.getElementById('btnZoomOut').addEventListener('click', () => {
+      this.boardView.setZoom(this.boardView.zoom - 0.25);
+    });
+    document.getElementById('btnZoomIn').addEventListener('click', () => {
+      this.boardView.setZoom(this.boardView.zoom + 0.25);
+    });
+    this.elZoomSlider.addEventListener('input', e => {
+      const val = parseFloat(e.target.value);
+      this.boardView.setZoom(val);
+    });
+
+    document.getElementById('btnBottomHint').addEventListener('click', () => this.handleHint());
+    this.btnGuideLines = document.getElementById('btnGuideLines');
+    this.btnGuideLines.addEventListener('click', () => {
+      const next = !this.boardView.showGuideLines;
+      this.boardView.setGuideLines(next);
+      this.btnGuideLines.classList.toggle('active', next);
+      this.showToast(next ? '已开启方向辅助线' : '已关闭方向辅助线');
+    });
+
+    // Overlay Navigation Bar (Close, Boards, Goals, Options)
+    this.elOverlayPanel = document.getElementById('overlayPanel');
+    document.getElementById('btnOverlayClose').addEventListener('click', () => this.closeOverlay());
+    document.getElementById('btnOverlayBoards').addEventListener('click', () => this.switchOverlayTab('boards'));
+    document.getElementById('btnOverlayGoals').addEventListener('click', () => this.switchOverlayTab('goals'));
+    document.getElementById('btnOverlayOptions').addEventListener('click', () => this.switchOverlayTab('options'));
+
+    // Filter tabs in Boards view (All, Finished, Unfinished)
+    document.querySelectorAll('.filter-tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this.boardFilter = btn.dataset.filter;
+        document.querySelectorAll('.filter-tab-btn').forEach(b => b.classList.toggle('active', b === btn));
+        this.renderBoardsList();
+      });
+    });
+
+    // Victory Modal buttons (Boards, Restart, Next)
+    this.elVictoryModal = document.getElementById('victoryModal');
+    document.getElementById('btnVicBoards').addEventListener('click', () => {
+      this.hideVictoryModal();
+      this.openOverlay('boards');
+    });
+    document.getElementById('btnVicRestart').addEventListener('click', () => {
+      this.hideVictoryModal();
+      this.startLevel(this.currentLevelIdx, true);
+    });
+    document.getElementById('btnVicNext').addEventListener('click', () => {
+      this.hideVictoryModal();
+      const nextIdx = (this.currentLevelIdx + 1) % LEVEL_DEFINITIONS.length;
+      this.startLevel(nextIdx, true);
+    });
+  }
+
+  initCanvas() {
+    this.boardView = new BoardCanvasView(this.canvasEl, {
+      onArrowTap: arrow => this.handleArrowTap(arrow),
+      onZoomChange: z => {
+        if (this.elZoomSlider) {
+          this.elZoomSlider.value = z.toFixed(2);
+        }
+      },
+    });
+    feedback.soundEnabled = this.saveData.sound;
+    feedback.vibrateEnabled = this.saveData.vibrate;
+  }
+
+  applyTheme(theme) {
+    this.saveData.theme = theme;
+    this.persistSaveData();
+    this.appEl.classList.toggle('theme-light', theme === 'light');
+    const knob = document.getElementById('themeKnobIcon');
+    if (knob) {
+      knob.textContent = theme === 'dark' ? '🌙' : '☀️';
+    }
+    if (this.boardView) {
+      this.boardView.setTheme(theme);
+    }
+  }
+
+  showToast(msg, duration = 1800) {
+    if (!this.elToast) return;
+    this.elToast.textContent = msg;
+    this.elToast.classList.add('visible');
+    if (this.toastTimeout) clearTimeout(this.toastTimeout);
+    this.toastTimeout = setTimeout(() => {
+      this.elToast.classList.remove('visible');
+    }, duration);
+  }
+
+  /**
+   * Start or load a level
+   */
+  startLevel(levelIdx, freshGenerate = true) {
+    this.currentLevelIdx = levelIdx;
+    this.saveData.lastLevelIdx = levelIdx;
+    this.persistSaveData();
+
+    this.levelDef = LEVEL_DEFINITIONS[levelIdx];
+    this.expectedSeconds = this.levelDef.expectedSeconds;
+    this.elapsedSeconds = 0;
+    this.usedShuffle = false;
+    this.usedHint = false;
+    this.isCompleted = false;
+    this.isPaused = false;
+
+    if (freshGenerate) {
+      const generated = generateFullLevel(this.levelDef);
+      this.rows = generated.rows;
+      this.cols = generated.cols;
+      this.mask = generated.mask;
+      this.arrows = cloneArrows(generated.arrows);
+      this.restartBaseArrows = cloneArrows(generated.arrows);
+    } else {
+      this.arrows = cloneArrows(this.restartBaseArrows);
+    }
+
+    this.boardView.setBoard({
+      rows: this.rows,
+      cols: this.cols,
+      mask: this.mask,
+      arrows: this.arrows,
+    });
+    setTimeout(() => this.boardView.resize(), 30);
+
+    this.updateHUD();
+  }
+
+  /**
+   * Handle player tapping an arrow on the canvas
+   */
+  handleArrowTap(arrow) {
+    if (this.isCompleted || arrow.removed) return;
+    if (this.boardView.slitheringArrows.has(arrow.id)) return;
+
+    const check = checkArrowExit(arrow, this.arrows, this.rows, this.cols);
+    if (check.canExit) {
+      // Clear path! Launch snake slithering animation out of the board
+      feedback.playArrowClear();
+      arrow.removed = true;
+      this.updateHUD();
+
+      this.boardView.animateArrowClear(arrow, () => {
+        this.checkLevelComplete();
+      });
+      // Also check immediately if all arrows have been launched
+      const remaining = this.arrows.filter(a => !a.removed).length;
+      if (remaining === 0) {
+        setTimeout(() => this.checkLevelComplete(), 280);
+      }
+    } else {
+      // Rule 2: Blocked! Vibrate phone + shake the arrow & its connected line in place (never turns red, never fails!)
+      feedback.triggerBlockedFeedback();
+      this.boardView.animateArrowShake(arrow, check);
+    }
+  }
+
+  /**
+   * Rule 3: Hint Feature — randomly pick one removable arrow and highlight it
+   */
+  handleHint() {
+    if (this.isCompleted) return;
+    const hintArrow = getRandomHintArrow(this.arrows, this.rows, this.cols);
+    if (!hintArrow) {
+      this.showToast('当前没有可移动的箭头，请尝试重排');
+      return;
+    }
+
+    this.usedHint = true;
+    feedback.playHint();
+    this.boardView.setHintArrow(hintArrow.id);
+    this.updateHUD();
+    this.showToast('💡 已高亮提示一条可移除的箭头');
+  }
+
+  /**
+   * Rule 4: Shuffle Feature — redraw remaining unremoved arrows on the board.
+   * Also immediately prepares `restartBaseArrows` based on the newly shuffled remaining arrows
+   * so that if the user clicks Restart next, the full board is reconstructed around this shuffled layout!
+   */
+  handleShuffle() {
+    if (this.isCompleted) return;
+    const remainingCount = this.arrows.filter(a => !a.removed).length;
+    if (remainingCount === 0) return;
+
+    this.usedShuffle = true;
+    this.shuffleCount++;
+    const shuffleSeed = this.levelDef.seed + this.shuffleCount * 1009 + Math.floor( performance.now() );
+
+    feedback.playShuffle();
+    const newRemainingArrows = shuffleRemainingArrows(
+      this.arrows,
+      this.rows,
+      this.cols,
+      shuffleSeed,
+      this.levelDef
+    );
+
+    // Pre-build the full board extension based on `newRemainingArrows` for Rule 4 (Shuffle -> Restart)
+    this.restartBaseArrows = extendShuffledToFull(
+      newRemainingArrows,
+      this.mask,
+      this.rows,
+      this.cols,
+      shuffleSeed + 313,
+      this.levelDef
+    );
+
+    this.arrows = cloneArrows(newRemainingArrows);
+    this.boardView.updateArrows(this.arrows, true);
+    this.updateHUD();
+    this.showToast('🔀 已重排剩余箭头（若点重开将基于此布局补全整局）');
+  }
+
+  /**
+   * Rule 4: Restart Feature — restarts the current board from 00:00.
+   * If Shuffle was clicked previously, `this.restartBaseArrows` contains the full board
+   * extended directly from the shuffled layout!
+   */
+  handleRestart() {
+    const wasShuffled = this.usedShuffle;
+    this.elapsedSeconds = 0;
+    this.usedShuffle = false;
+    this.usedHint = false;
+    this.isCompleted = false;
+    this.isPaused = false;
+
+    this.arrows = cloneArrows(this.restartBaseArrows);
+    this.boardView.updateArrows(this.arrows, true);
+    this.updateHUD();
+
+    if (wasShuffled) {
+      this.showToast('🔄 已基于重排后的布局补全并重新开始本局');
+    } else {
+      this.showToast('🔄 已重新开始本局');
+    }
+  }
+
+  checkLevelComplete() {
+    if (this.isCompleted) return;
+    const remaining = this.arrows.filter(a => !a.removed).length;
+    if (remaining > 0) return;
+
+    this.isCompleted = true;
+
+    // Rule 5: Compute earned stars (3 independent criteria)
+    const starNoShuffle = !this.usedShuffle;
+    const starNoHint = !this.usedHint;
+    const starInTime = this.elapsedSeconds <= this.expectedSeconds;
+
+    const earnedStarsCount =
+      (starNoShuffle ? 1 : 0) + (starNoHint ? 1 : 0) + (starInTime ? 1 : 0);
+
+    // Save record (preserve highest stars & best time)
+    const prevRec = this.saveData.levelRecords[this.levelDef.id] || {
+      finished: false,
+      stars: 0,
+      bestTime: Infinity,
+    };
+    this.saveData.levelRecords[this.levelDef.id] = {
+      finished: true,
+      stars: Math.max(prevRec.stars || 0, earnedStarsCount),
+      bestTime: Math.min(prevRec.bestTime || Infinity, this.elapsedSeconds),
+    };
+    this.persistSaveData();
+
+    this.showVictoryModal({
+      starNoShuffle,
+      starNoHint,
+      starInTime,
+      earnedStarsCount,
+    });
+  }
+
+  showVictoryModal({ starNoShuffle, starNoHint, starInTime, earnedStarsCount }) {
+    document.getElementById('vicTimeText').textContent = formatTime(this.elapsedSeconds);
+    document.getElementById('vicTotalStarsText').textContent = `${this.getTotalStars()}`;
+    document.getElementById('vicExpectedLabel').textContent = `⏱ ${formatTime(this.expectedSeconds)}`;
+
+    const starConditions = [starNoShuffle, starNoHint, starInTime];
+    const slotIds = ['vicStarSlot0', 'vicStarSlot1', 'vicStarSlot2'];
+
+    // First render all 3 slots as grey unlit stars
+    slotIds.forEach(id => {
+      const slot = document.getElementById(id);
+      slot.innerHTML =
+        createStarSVG(false, 'star-svg-base') +
+        createStarSVG(true, 'star-svg-lit');
+    });
+
+    const bannerText = document.getElementById('vicBannerText');
+    if (earnedStarsCount === 3) {
+      bannerText.textContent = `完美通关！你在 ${formatTime(this.elapsedSeconds)} 内零提示、零重排拿下满星！`;
+    } else if (earnedStarsCount > 0) {
+      bannerText.textContent = `恭喜通关第 ${this.levelDef.id} 关！本次点亮 ${earnedStarsCount} 颗星。`;
+    } else {
+      bannerText.textContent = `第 ${this.levelDef.id} 关已完成！随时可重玩挑战点亮 3 颗星。`;
+    }
+
+    this.elVictoryModal.classList.remove('hidden');
+
+    // Animate lighting up earned stars sequentially with Mahjong Titan zoom-slam effect
+    let delayIndex = 0;
+    starConditions.forEach((earned, idx) => {
+      if (earned) {
+        const currentOrder = delayIndex++;
+        setTimeout(() => {
+          const slot = document.getElementById(slotIds[idx]);
+          if (!slot) return;
+          const litSvg = slot.querySelector('.star-svg-lit');
+          if (litSvg) {
+            litSvg.classList.add('animate-in');
+            feedback.playStarPop(currentOrder);
+          }
+        }, 280 + currentOrder * 420);
+      }
+    });
+  }
+
+  hideVictoryModal() {
+    this.elVictoryModal.classList.add('hidden');
+  }
+
+  startTimerLoop() {
+    if (this.timerInterval) clearInterval(this.timerInterval);
+    this.timerInterval = setInterval(() => {
+      if (!this.isPaused && !this.isCompleted) {
+        this.elapsedSeconds++;
+        this.updateTimerDOM();
+      }
+    }, 1000);
+  }
+
+  updateTimerDOM() {
+    if (!this.elTimerText) return;
+    this.elTimerText.textContent = formatTime(this.elapsedSeconds);
+    this.elExpectedText.textContent = `/ 预计 ${formatTime(this.expectedSeconds)}`;
+    const isWithinTime = this.elapsedSeconds <= this.expectedSeconds;
+    this.elTimerText.classList.toggle('timer-overtime', !isWithinTime);
+    if (this.elLiveStarTime) {
+      this.elLiveStarTime.classList.toggle('eligible', isWithinTime);
+    }
+  }
+
+  updateHUD() {
+    if (this.elLevelTitle) {
+      this.elLevelTitle.textContent = `关卡 ${this.levelDef.id}`;
+    }
+    this.updateTimerDOM();
+
+    const total = this.arrows.length;
+    const rem = this.arrows.filter(a => !a.removed).length;
+    if (this.elRemainBadge) {
+      this.elRemainBadge.textContent = `${rem} / ${total}`;
+    }
+
+    if (this.elLiveStarShuffle) {
+      this.elLiveStarShuffle.classList.toggle('eligible', !this.usedShuffle);
+    }
+    if (this.elLiveStarHint) {
+      this.elLiveStarHint.classList.toggle('eligible', !this.usedHint);
+    }
+    if (this.elLiveStarTime) {
+      this.elLiveStarTime.classList.toggle(
+        'eligible',
+        this.elapsedSeconds <= this.expectedSeconds
+      );
+    }
+  }
+
+  /**
+   * Open Mahjong Titan style Overlay (Boards / Goals / Options)
+   */
+  openOverlay(tab = 'boards') {
+    this.isPaused = true;
+    this.elOverlayPanel.classList.remove('hidden');
+    this.switchOverlayTab(tab);
+  }
+
+  closeOverlay() {
+    this.elOverlayPanel.classList.add('hidden');
+    this.isPaused = false;
+  }
+
+  switchOverlayTab(tab) {
+    this.activeMenuTab = tab;
+    document
+      .getElementById('btnOverlayBoards')
+      .classList.toggle('active-tab', tab === 'boards');
+    document
+      .getElementById('btnOverlayGoals')
+      .classList.toggle('active-tab', tab === 'goals');
+    document
+      .getElementById('btnOverlayOptions')
+      .classList.toggle('active-tab', tab === 'options');
+
+    document.getElementById('tabViewBoards').style.display =
+      tab === 'boards' ? 'flex' : 'none';
+    document.getElementById('tabViewGoals').style.display =
+      tab === 'goals' ? 'flex' : 'none';
+    document.getElementById('tabViewOptions').style.display =
+      tab === 'options' ? 'flex' : 'none';
+
+    if (tab === 'boards') {
+      this.renderBoardsList();
+    } else if (tab === 'goals') {
+      this.renderGoalsView();
+    } else if (tab === 'options') {
+      this.renderOptionsView();
+    }
+  }
+
+  /**
+   * Render the Mahjong Titan Screenshot 3 style Boards List
+   * Each row shows: mini pattern thumbnail + level number & expected time + 3 stars (grey before play, gold when lit)
+   */
+  renderBoardsList() {
+    const listContainer = document.getElementById('boardsListContainer');
+    const summaryText = document.getElementById('boardsSummaryText');
+    const totalStarsEl = document.getElementById('boardsTotalStars');
+
+    const totalLevels = LEVEL_DEFINITIONS.length;
+    const finishedCount = LEVEL_DEFINITIONS.filter(
+      l => this.saveData.levelRecords[l.id]?.finished
+    ).length;
+
+    summaryText.textContent = `已完成 ${finishedCount} / ${totalLevels} 关`;
+    totalStarsEl.innerHTML = `${this.getTotalStars()} <span>★</span>`;
+
+    const filtered = LEVEL_DEFINITIONS.filter(lvl => {
+      const isFin = Boolean(this.saveData.levelRecords[lvl.id]?.finished);
+      if (this.boardFilter === 'finished') return isFin;
+      if (this.boardFilter === 'unfinished') return !isFin;
+      return true;
+    });
+
+    listContainer.innerHTML = '';
+
+    filtered.forEach(lvl => {
+      const rec = this.saveData.levelRecords[lvl.id];
+      const earnedStars = rec && rec.finished ? rec.stars : 0;
+      const isCurrent = lvl.id === this.levelDef.id;
+
+      const row = document.createElement('div');
+      row.className = `board-row-item ${isCurrent ? 'current-level' : ''}`;
+
+      const left = document.createElement('div');
+      left.className = 'board-row-left';
+
+      const thumbCanvas = document.createElement('canvas');
+      thumbCanvas.width = 50;
+      thumbCanvas.height = 50;
+      thumbCanvas.className = 'board-thumb-canvas';
+      this.drawLevelThumbnail(thumbCanvas, lvl.mask);
+
+      const info = document.createElement('div');
+      info.className = 'board-row-info';
+      info.innerHTML = `
+        <div class="board-row-number">
+          <span>${lvl.id}</span>
+          <span style="font-size:13px;font-weight:500;color:#cbd5e1;">${lvl.name}</span>
+        </div>
+        <div class="board-row-subtitle">
+          难度: ${lvl.difficulty} · 预计时间 ${formatTime(lvl.expectedSeconds)}
+          ${rec?.finished && isFinite(rec.bestTime) ? ` · 最佳 ${formatTime(rec.bestTime)}` : ''}
+        </div>
+      `;
+
+      left.appendChild(thumbCanvas);
+      left.appendChild(info);
+
+      const starsWrap = document.createElement('div');
+      starsWrap.className = 'board-row-stars';
+      for (let s = 1; s <= 3; s++) {
+        const starSpan = document.createElement('span');
+        starSpan.className = 'row-star-icon';
+        starSpan.innerHTML = createStarSVG(s <= earnedStars);
+        starsWrap.appendChild(starSpan);
+      }
+
+      row.appendChild(left);
+      row.appendChild(starsWrap);
+
+      row.addEventListener('click', () => {
+        const idx = LEVEL_DEFINITIONS.findIndex(item => item.id === lvl.id);
+        this.closeOverlay();
+        this.startLevel(idx, true);
+      });
+
+      listContainer.appendChild(row);
+    });
+  }
+
+  /**
+   * Draw mini golden-tile silhouette of the level's shape mask (Mahjong Titan Screenshot 3 style)
+   */
+  drawLevelThumbnail(canvas, mask) {
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width;
+    const H = canvas.height;
+    ctx.fillStyle = '#3d4047';
+    ctx.fillRect(0, 0, W, H);
+
+    const rows = mask.length;
+    const cols = mask[0].length;
+    const pad = 6;
+    const cell = Math.min((W - pad * 2) / cols, (H - pad * 2) / rows);
+    const ox = (W - cols * cell) / 2;
+    const oy = (H - rows * cell) / 2;
+
+    ctx.fillStyle = '#e9dca3';
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        if (mask[r][c] === 1) {
+          ctx.fillRect(
+            ox + c * cell + 0.35,
+            oy + r * cell + 0.35,
+            Math.max(1, cell - 0.7),
+            Math.max(1, cell - 0.7)
+          );
+        }
+      }
+    }
+  }
+
+  renderGoalsView() {
+    const container = document.getElementById('goalsContentContainer');
+    const totalLevels = LEVEL_DEFINITIONS.length;
+    const maxStars = totalLevels * 3;
+    const curStars = this.getTotalStars();
+    const finishedLevels = Object.values(this.saveData.levelRecords).filter(r => r.finished).length;
+    const threeStarLevels = Object.values(this.saveData.levelRecords).filter(r => r.stars === 3).length;
+
+    const goals = [
+      {
+        title: '初露锋芒',
+        desc: '完成任意 1 个关卡',
+        done: finishedLevels >= 1,
+      },
+      {
+        title: '完美主义',
+        desc: '在任意关卡中不重排、不用提示且在预计时间内完成（获得 3 颗星）',
+        done: threeStarLevels >= 1,
+      },
+      {
+        title: '渐入佳境',
+        desc: '累计点亮 15 颗星星',
+        done: curStars >= 15,
+      },
+      {
+        title: '灵蛇降服者',
+        desc: '通关经典第 17 关（灵蛇盘踞）',
+        done: Boolean(this.saveData.levelRecords[17]?.finished),
+      },
+      {
+        title: '神箭大宗师',
+        desc: `通关全部 ${totalLevels} 个关卡 (${finishedLevels}/${totalLevels})`,
+        done: finishedLevels >= totalLevels,
+      },
+      {
+        title: '满星传奇',
+        desc: `收集全部 ${maxStars} 颗星星 (${curStars}/${maxStars})`,
+        done: curStars >= maxStars,
+      },
+    ];
+
+    container.innerHTML = goals
+      .map(
+        g => `
+        <div class="setting-card">
+          <div>
+            <div class="setting-card-title">${g.title}</div>
+            <div class="setting-card-desc">${g.desc}</div>
+          </div>
+          <div style="width:32px;height:32px;flex-shrink:0;">
+            ${createStarSVG(g.done)}
+          </div>
+        </div>
+      `
+      )
+      .join('');
+  }
+
+  renderOptionsView() {
+    const container = document.getElementById('optionsContentContainer');
+    container.innerHTML = `
+      <div class="setting-card">
+        <div>
+          <div class="setting-card-title">游戏音效 (Sound)</div>
+          <div class="setting-card-desc">箭头滑出、碰错闷响与点亮星星音效</div>
+        </div>
+        <button id="optSoundBtn" class="toggle-btn ${this.saveData.sound ? 'on' : ''}">
+          ${this.saveData.sound ? '开启' : '关闭'}
+        </button>
+      </div>
+
+      <div class="setting-card">
+        <div>
+          <div class="setting-card-title">手机振动提醒 (Vibration)</div>
+          <div class="setting-card-desc">碰错被阻挡的箭头时通过振动反馈（不计失败）</div>
+        </div>
+        <button id="optVibrateBtn" class="toggle-btn ${this.saveData.vibrate ? 'on' : ''}">
+          ${this.saveData.vibrate ? '开启' : '关闭'}
+        </button>
+      </div>
+
+      <div class="setting-card">
+        <div>
+          <div class="setting-card-title">画面主题配色 (Theme)</div>
+          <div class="setting-card-desc">切换《一箭又一箭》经典深邃夜色或明亮日间模式</div>
+        </div>
+        <button id="optThemeBtn" class="toggle-btn on">
+          ${this.saveData.theme === 'dark' ? '🌙 夜间深蓝' : '☀️ 日间明亮'}
+        </button>
+      </div>
+
+      <div class="setting-card">
+        <div>
+          <div class="setting-card-title">全屏沉浸模式 (Fullscreen)</div>
+          <div class="setting-card-desc">隐藏浏览器工具栏，享受 16:9 全屏游戏体验</div>
+        </div>
+        <button id="optFsBtn" class="toggle-btn on">切换全屏</button>
+      </div>
+
+      <div class="setting-card">
+        <div>
+          <div class="setting-card-title">手机无网本地畅玩包 (Offline HTML)</div>
+          <div class="setting-card-desc">下载独立单文件版到手机本地，断网/飞行模式也能直接点开玩</div>
+        </div>
+        <a
+          href="./一箭又一箭_手机离线单文件版.html"
+          download="一箭又一箭_手机离线单文件版.html"
+          class="toggle-btn on"
+          style="text-decoration:none;display:inline-block;text-align:center;"
+        >下载离线版</a>
+      </div>
+    `;
+
+    document.getElementById('optSoundBtn').addEventListener('click', () => {
+      this.saveData.sound = !this.saveData.sound;
+      feedback.soundEnabled = this.saveData.sound;
+      this.persistSaveData();
+      this.renderOptionsView();
+    });
+
+    document.getElementById('optVibrateBtn').addEventListener('click', () => {
+      this.saveData.vibrate = !this.saveData.vibrate;
+      feedback.vibrateEnabled = this.saveData.vibrate;
+      if (this.saveData.vibrate) feedback.vibrate(40);
+      this.persistSaveData();
+      this.renderOptionsView();
+    });
+
+    document.getElementById('optThemeBtn').addEventListener('click', () => {
+      const next = this.saveData.theme === 'dark' ? 'light' : 'dark';
+      this.applyTheme(next);
+      this.renderOptionsView();
+    });
+
+    document.getElementById('optFsBtn').addEventListener('click', () => {
+      this.toggleFullscreen();
+    });
+  }
+
+  toggleFullscreen() {
+    const doc = document;
+    const el = doc.documentElement;
+    if (!doc.fullscreenElement && !doc.webkitFullscreenElement) {
+      if (el.requestFullscreen) {
+        el.requestFullscreen().catch(() => {});
+      } else if (el.webkitRequestFullscreen) {
+        el.webkitRequestFullscreen();
+      }
+    } else {
+      if (doc.exitFullscreen) {
+        doc.exitFullscreen().catch(() => {});
+      } else if (doc.webkitExitFullscreen) {
+        doc.webkitExitFullscreen();
+      }
+    }
+  }
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  window.arrowGame = new ArrowGameApp();
+});
+
+})();
+</script>
+</body>
+</html>

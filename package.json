@@ -1,0 +1,10 @@
+{
+  "name": "arrow-by-arrow-custom",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "《一箭又一箭》纯净定制版 PWA (融合 Mahjong Titan 关卡与三星系统)",
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node tests/verify.mjs"
+  }
+}
