@@ -286,7 +286,40 @@ body {
 .subheader-right {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+}
+
+.combo-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #9fb0cd;
+  font-variant-numeric: tabular-nums;
+  transition: transform 0.2s, background 0.2s, color 0.2s, box-shadow 0.2s;
+}
+
+.combo-badge.combo-active {
+  background: rgba(110, 181, 235, 0.18);
+  color: #ffffff;
+}
+
+.combo-badge.combo-rainbow {
+  background: linear-gradient(90deg, #ff5e7e, #ffb347, #5ec7b8, #8c7ae6);
+  color: #ffffff;
+  box-shadow: 0 0 10px rgba(255, 179, 71, 0.55);
+  transform: scale(1.06);
+}
+
+#app.theme-light .combo-badge {
+  background: rgba(43, 50, 68, 0.08);
+  color: #4b5770;
+}
+
+#app.theme-light .combo-badge.combo-active {
+  background: rgba(78, 137, 219, 0.18);
+  color: #1f293d;
 }
 
 .remain-badge {
@@ -920,6 +953,7 @@ body {
         </div>
 
         <div class="subheader-right">
+          <span id="comboBadge" class="combo-badge" title="当前连击进度（每满 7 连击生成一条彩虹箭头）">🌈 0/7</span>
           <span id="remainBadge" class="remain-badge" title="剩余箭头 / 总箭头数">15 / 15</span>
           <button id="btnFullscreen" class="icon-square-btn" title="全屏模式">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
@@ -1029,7 +1063,7 @@ body {
             <button class="filter-tab-btn" data-filter="unfinished">未完成 (Unfinished)</button>
           </div>
           <div class="boards-summary-strip">
-            <span id="boardsSummaryText">已完成 0 / 100 关</span>
+            <span id="boardsSummaryText">已完成 0 / 26 关</span>
             <div id="boardsTotalStars" class="total-stars-pill">0 <span>★</span></div>
           </div>
           <div id="boardsListContainer" class="boards-list-scroll"></div>
@@ -1121,16 +1155,16 @@ body {
 (function() {
 // === [src/engine/patterns.js] ===
 /**
- * 100 High-Density Levels for 《一箭又一箭》 (Arrow by Arrow)
- * Designed to match the exact grid density of the original WeChat mini-game (32x28 to 42x36 grids,
- * 90 to 200+ winding snake arrows per board, with 16:9 mobile portrait proportion).
+ * 26 English Alphabet Levels (A - Z) for 《一箭又一箭》 (Arrow by Arrow)
+ * Each level is sculpted in the shape of a bold capital letter A..Z on a 34x28 grid,
+ * tuned for < 100 arrows per board with high length variance (short 2-4 cell lock arrows
+ * + medium 8-15 cell winding arrows + long 18-38 cell tortuous multi-bend snakes).
  */
 function sanitizeMask(mask) {
   const R = mask.length;
   const C = mask[0].length;
   const out = mask.map(row => [...row]);
 
-  // Remove or connect any degree-0 or degree-1 isolated 1-cell islands
   let changed = true;
   let guard = 0;
   while (changed && guard++ < 8) {
@@ -1154,17 +1188,12 @@ function sanitizeMask(mask) {
   return out;
 }
 
-/**
- * Create a high-density grid mask with 1-cell dot padding around the shape
- * so empty grid dots are visible around and inside the silhouette like Screenshot 1 & 2.
- */
-function buildHighDensityMask(rows, cols, shapeFn) {
+function buildLetterMask(rows, cols, shapeFn) {
   const mask = Array.from({ length: rows }, (_, r) =>
     Array.from({ length: cols }, (_, c) => {
-      // Leave 1 cell margin on outer border so external dots frame the shape nicely
       if (r === 0 || r === rows - 1 || c === 0 || c === cols - 1) return 0;
-      const ny = ((r - 1) / (rows - 3)) * 2 - 1; // -1 .. +1
-      const nx = ((c - 1) / (cols - 3)) * 2 - 1; // -1 .. +1
+      const ny = ((r - 1) / (rows - 3)) * 2 - 1; // -1 (top) .. +1 (bottom)
+      const nx = ((c - 1) / (cols - 3)) * 2 - 1; // -1 (left) .. +1 (right)
       return shapeFn(nx, ny, r, c, rows, cols) ? 1 : 0;
     })
   );
@@ -1172,7 +1201,7 @@ function buildHighDensityMask(rows, cols, shapeFn) {
 }
 
 /**
- * Distance from point (px, py) to segment (ax, ay)-(bx, by)
+ * Signed distance from (px, py) to segment (ax, ay) -> (bx, by)
  */
 function sdSegment(px, py, ax, ay, bx, by) {
   const pax = px - ax;
@@ -1184,458 +1213,360 @@ function sdSegment(px, py, ax, ay, bx, by) {
 }
 
 /**
- * Distance to box centered at (cx, cy) with half-extents (hx, hy)
+ * Axis-aligned box check: |x - cx| <= hx && |y - cy| <= hy
  */
-function sdBox(px, py, cx, cy, hx, hy) {
-  const dx = Math.abs(px - cx) - hx;
-  const dy = Math.abs(py - cy) - hy;
-  return Math.hypot(Math.max(dx, 0), Math.max(dy, 0)) + Math.min(Math.max(dx, dy), 0);
+function inBox(px, py, cx, cy, hx, hy) {
+  return Math.abs(px - cx) <= hx && Math.abs(py - cy) <= hy;
 }
 
 /**
- * Distance to circle/ellipse
+ * Elliptical ring check
  */
-function sdRing(px, py, cx, cy, radius, thickness) {
-  return Math.abs(Math.hypot(px - cx, py - cy) - radius) - thickness;
+function inRing(px, py, cx, cy, rx, ry, innerRatio = 0.42) {
+  const d = Math.hypot((px - cx) / rx, (py - cy) / ry);
+  return d <= 1.0 && d >= innerRatio;
 }
 
 /**
- * High-resolution bold glyph & emblem primitives (thick strokes like Screenshot Level 17 "B")
+ * 26 Bold Capital Letters A - Z
+ * Stroke thickness is generous (~0.48 to 0.56 in normalized [-1,1] space, i.e. 6-8 grid cells wide)
+ * so long snakes can coil and make multiple 90-degree switchbacks inside every stroke!
  */
-const SHAPE_BUILDERS = [
-  // 1. Bold Capital 'B' (The exact iconic shape from the user's Level 17 screenshot!)
+const ALPHABET_SHAPES = [
   {
-    name: '经典重装 · B字迷宫',
-    fn: (nx, ny) => {
-      const leftSpine = nx >= -0.88 && nx <= -0.22 && Math.abs(ny) <= 0.92;
+    letter: 'A',
+    title: '字母 A · 巅峰金字塔',
+    expectedSeconds: 240,
+    fn: (x, y) => {
+      const leftLeg = sdSegment(x, y, -0.06, -0.76, -0.68, 0.8) <= 0.27;
+      const rightLeg = sdSegment(x, y, 0.06, -0.76, 0.68, 0.8) <= 0.27;
+      const crossbar = inBox(x, y, 0, 0.22, 0.56, 0.21);
+      const topCrown = inBox(x, y, 0, -0.72, 0.34, 0.2);
+      const hole = Math.abs(x) <= (y + 0.38) * 0.36 && y > -0.35 && y < 0.02;
+      return (leftLeg || rightLeg || crossbar || topCrown) && !hole;
+    },
+  },
+  {
+    letter: 'B',
+    title: '字母 B · 经典双环迷阵',
+    expectedSeconds: 300,
+    fn: (x, y) => {
+      const leftSpine = x >= -0.88 && x <= -0.22 && Math.abs(y) <= 0.92;
       const topLoop =
-        Math.hypot((nx + 0.08) * 0.92, (ny + 0.46) * 1.12) <= 0.62 &&
-        Math.hypot((nx + 0.05) * 1.0, (ny + 0.46) * 1.15) >= 0.22;
+        Math.hypot((x + 0.06) * 0.9, (y + 0.45) * 1.1) <= 0.64 &&
+        Math.hypot((x + 0.02) * 1.05, (y + 0.45) * 1.15) >= 0.22;
       const botLoop =
-        Math.hypot((nx + 0.05) * 0.88, (ny - 0.46) * 1.12) <= 0.66 &&
-        Math.hypot((nx + 0.02) * 1.0, (ny - 0.46) * 1.15) >= 0.23;
-      const topBar = ny >= -0.92 && ny <= -0.64 && nx >= -0.88 && nx <= 0.35;
-      const midBar = Math.abs(ny) <= 0.16 && nx >= -0.88 && nx <= 0.42;
-      const botBar = ny >= 0.64 && ny <= 0.92 && nx >= -0.88 && nx <= 0.45;
+        Math.hypot((x + 0.03) * 0.86, (y - 0.45) * 1.1) <= 0.68 &&
+        Math.hypot((x + 0.0) * 1.05, (y - 0.45) * 1.15) >= 0.24;
+      const topBar = y >= -0.92 && y <= -0.62 && x >= -0.88 && x <= 0.36;
+      const midBar = Math.abs(y) <= 0.18 && x >= -0.88 && x <= 0.42;
+      const botBar = y >= 0.62 && y <= 0.92 && x >= -0.88 && x <= 0.45;
       return leftSpine || topLoop || botLoop || topBar || midBar || botBar;
     },
   },
-  // 2. Bold 'S' Serpent
   {
-    name: '灵蛇盘踞 · S形迷阵',
-    fn: (nx, ny) => {
-      const topArc =
-        ny <= 0.1 &&
-        sdRing(nx, (ny + 0.44) * 1.1, 0, 0, 0.48, 0.28) <= 0 &&
-        !(nx > 0.15 && ny > -0.35);
-      const botArc =
-        ny >= -0.1 &&
-        sdRing(nx, (ny - 0.44) * 1.1, 0, 0, 0.48, 0.28) <= 0 &&
-        !(nx < -0.15 && ny < 0.35);
-      const diag = sdSegment(nx, ny, -0.45, -0.25, 0.45, 0.25) <= 0.27;
-      return topArc || botArc || diag;
+    letter: 'C',
+    title: '字母 C · 新月弯弓',
+    expectedSeconds: 260,
+    fn: (x, y) => {
+      const ring = inRing(x, y, 0.04, 0, 0.92, 0.94, 0.3);
+      const opening = x > 0.28 && Math.abs(y) < 0.28;
+      const topSerif = inBox(x, y, 0.56, -0.52, 0.32, 0.26);
+      const botSerif = inBox(x, y, 0.56, 0.52, 0.32, 0.26);
+      return (ring && !opening) || topSerif || botSerif;
     },
   },
-  // 3. Giant Full Heart
   {
-    name: '炽热之心 · 满格巨心',
-    fn: (nx, ny) => {
-      const x = nx * 1.12;
-      const y = -ny * 1.1 + 0.18;
-      const a = x * x + y * y - 0.62;
-      const inside = a * a * a - x * x * y * y * y <= 0;
-      const centerHole = Math.hypot(nx, ny + 0.05) < 0.2;
-      return inside && !centerHole;
+    letter: 'D',
+    title: '字母 D · 圣殿巨盾',
+    expectedSeconds: 270,
+    fn: (x, y) => {
+      const spine = inBox(x, y, -0.56, 0, 0.32, 0.92);
+      const arc = inRing(x, y, -0.12, 0, 0.96, 0.92, 0.38) && x >= -0.35;
+      const topBar = inBox(x, y, -0.25, -0.7, 0.52, 0.22);
+      const botBar = inBox(x, y, -0.25, 0.7, 0.52, 0.22);
+      const innerHole = x > -0.22 && Math.hypot((x + 0.15) / 0.42, y / 0.42) < 0.85;
+      return (spine || arc || topBar || botBar) && !innerHole;
     },
   },
-  // 4. Royal Double-Ring Target
   {
-    name: '星环同心 · 双子魔环',
-    fn: (nx, ny) => {
-      const d = Math.hypot(nx, ny);
-      const outer = d <= 0.96 && d >= 0.56;
-      const inner = d <= 0.38;
-      const cross = (Math.abs(nx) <= 0.18 || Math.abs(ny) <= 0.18) && d <= 0.96;
-      return outer || inner || cross;
+    letter: 'E',
+    title: '字母 E · 三重回廊',
+    expectedSeconds: 270,
+    fn: (x, y) => {
+      const spine = inBox(x, y, -0.56, 0, 0.32, 0.92);
+      const topBar = inBox(x, y, 0.02, -0.7, 0.86, 0.22);
+      const midBar = inBox(x, y, -0.06, 0, 0.72, 0.21);
+      const botBar = inBox(x, y, 0.02, 0.7, 0.86, 0.22);
+      return spine || topBar || midBar || botBar;
     },
   },
-  // 5. Bold Figure '8' Hourglass
   {
-    name: '无限回廊 · 八字天枢',
-    fn: (nx, ny) => {
-      const top =
-        Math.hypot(nx * 0.92, (ny + 0.45) * 1.15) <= 0.66 &&
-        Math.hypot(nx, (ny + 0.46) * 1.15) >= 0.22;
-      const bot =
-        Math.hypot(nx * 0.88, (ny - 0.45) * 1.15) <= 0.7 &&
-        Math.hypot(nx, (ny - 0.46) * 1.15) >= 0.24;
-      const waist = Math.abs(ny) <= 0.18 && Math.abs(nx) <= 0.52;
-      return top || bot || waist;
+    letter: 'F',
+    title: '字母 F · 双翼旌旗',
+    expectedSeconds: 240,
+    fn: (x, y) => {
+      const spine = inBox(x, y, -0.52, 0, 0.34, 0.92);
+      const topBar = inBox(x, y, 0.04, -0.68, 0.86, 0.24);
+      const midBar = inBox(x, y, -0.04, -0.02, 0.72, 0.22);
+      const foot = inBox(x, y, -0.42, 0.74, 0.44, 0.18);
+      return spine || topBar || midBar || foot;
     },
   },
-  // 6. Imperial Butterfly
   {
-    name: '凤尾蝶翼 · 幻彩对称',
-    fn: (nx, ny) => {
-      const ax = Math.abs(nx);
-      const upperWing = Math.hypot((ax - 0.45) * 0.95, (ny + 0.35) * 1.05) <= 0.52;
-      const lowerWing = Math.hypot((ax - 0.38) * 1.05, (ny - 0.42) * 1.05) <= 0.46;
-      const body = ax <= 0.18 && Math.abs(ny) <= 0.85;
-      const eyeHole = Math.hypot(ax - 0.52, ny + 0.38) < 0.16;
-      return (upperWing || lowerWing || body) && !eyeHole;
+    letter: 'G',
+    title: '字母 G · 旋涡引力',
+    expectedSeconds: 300,
+    fn: (x, y) => {
+      const ring = inRing(x, y, 0.02, 0, 0.9, 0.92, 0.36);
+      const gap = x > 0.18 && y < -0.06 && y > -0.42;
+      const shelf = inBox(x, y, 0.38, 0.12, 0.5, 0.21);
+      const spur = inBox(x, y, 0.62, 0.42, 0.26, 0.38);
+      return (ring && !gap) || shelf || spur;
     },
   },
-  // 7. Four-Window Fortress
   {
-    name: '九宫重城 · 四象方阵',
-    fn: (nx, ny) => {
-      const inSquare = Math.abs(nx) <= 0.94 && Math.abs(ny) <= 0.94;
-      const hole =
-        Math.abs(nx) >= 0.22 &&
-        Math.abs(nx) <= 0.56 &&
-        Math.abs(ny) >= 0.22 &&
-        Math.abs(ny) <= 0.56;
-      return inSquare && !hole;
+    letter: 'H',
+    title: '字母 H · 双子天桥',
+    expectedSeconds: 280,
+    fn: (x, y) => {
+      const leftPillar = inBox(x, y, -0.58, 0, 0.32, 0.92);
+      const rightPillar = inBox(x, y, 0.58, 0, 0.32, 0.92);
+      const bridge = inBox(x, y, 0, 0, 0.65, 0.25);
+      return leftPillar || rightPillar || bridge;
     },
   },
-  // 8. Bold Letter 'A'
   {
-    name: '巅峰王座 · A字高塔',
-    fn: (nx, ny) => {
-      const leftLeg = sdSegment(nx, ny, 0, -0.82, -0.68, 0.82) <= 0.26;
-      const rightLeg = sdSegment(nx, ny, 0, -0.82, 0.68, 0.82) <= 0.26;
-      const crossbar = Math.abs(ny - 0.18) <= 0.2 && Math.abs(nx) <= 0.55;
-      const topCap = Math.abs(ny + 0.72) <= 0.18 && Math.abs(nx) <= 0.35;
-      return leftLeg || rightLeg || crossbar || topCap;
+    letter: 'I',
+    title: '字母 I · 擎天圣柱',
+    expectedSeconds: 260,
+    fn: (x, y) => {
+      const topCap = inBox(x, y, 0, -0.66, 0.88, 0.28);
+      const pillar = inBox(x, y, 0, 0, 0.46, 0.92);
+      const botCap = inBox(x, y, 0, 0.66, 0.88, 0.28);
+      return topCap || pillar || botCap;
     },
   },
-  // 9. Bold Letter 'G'
   {
-    name: '玄武盘旋 · G字引力',
-    fn: (nx, ny) => {
-      const ring = sdRing(nx, ny, 0, 0, 0.62, 0.28) <= 0 && !(nx > 0.2 && ny < -0.05 && ny > -0.45);
-      const shelf = ny >= -0.08 && ny <= 0.28 && nx >= -0.05 && nx <= 0.88;
-      const pillar = nx >= 0.42 && nx <= 0.88 && ny >= -0.08 && ny <= 0.75;
-      return ring || shelf || pillar;
+    letter: 'J',
+    title: '字母 J · 沧海钩戟',
+    expectedSeconds: 260,
+    fn: (x, y) => {
+      const topCap = inBox(x, y, 0.12, -0.66, 0.78, 0.28);
+      const stem = inBox(x, y, 0.32, -0.04, 0.42, 0.72);
+      const hook = inRing(x, y, -0.06, 0.36, 0.82, 0.58, 0.26) && y >= 0.06;
+      const leftTip = inBox(x, y, -0.56, 0.2, 0.34, 0.3);
+      return topCap || stem || hook || leftTip;
     },
   },
-  // 10. Giant Five-Pointed Star Emblem
   {
-    name: '耀世星芒 · 五角星阵',
-    fn: (nx, ny) => {
-      const angle = Math.atan2(ny, nx) + Math.PI / 2;
-      const r = Math.hypot(nx, ny);
-      const starBound = 0.68 + 0.26 * Math.cos(angle * 5);
-      const centerHole = r < 0.2;
-      return r <= starBound && !centerHole;
+    letter: 'K',
+    title: '字母 K · 破晓战戟',
+    expectedSeconds: 300,
+    fn: (x, y) => {
+      const spine = inBox(x, y, -0.56, 0, 0.32, 0.92);
+      const upperArm = sdSegment(x, y, -0.25, 0.05, 0.64, -0.74) <= 0.28;
+      const lowerArm = sdSegment(x, y, -0.2, -0.05, 0.64, 0.74) <= 0.28;
+      const knot = inBox(x, y, -0.2, 0, 0.32, 0.24);
+      return spine || upperArm || lowerArm || knot;
     },
   },
-  // 11. Bold Letter 'M'
   {
-    name: '群峰耸立 · M字双峡',
-    fn: (nx, ny) => {
-      const ax = Math.abs(nx);
-      const outerPillar = ax >= 0.46 && ax <= 0.92 && Math.abs(ny) <= 0.9;
-      const vDiagonal = sdSegment(ax, ny, 0.7, -0.78, 0.0, 0.35) <= 0.25;
-      const centerSpike = ax <= 0.24 && ny >= -0.25 && ny <= 0.65;
-      return outerPillar || vDiagonal || centerSpike;
+    letter: 'L',
+    title: '字母 L · 铁壁角楼',
+    expectedSeconds: 260,
+    fn: (x, y) => {
+      const topSerif = inBox(x, y, -0.42, -0.7, 0.48, 0.22);
+      const spine = inBox(x, y, -0.46, 0, 0.42, 0.92);
+      const base = inBox(x, y, 0.04, 0.62, 0.88, 0.32);
+      const cornerTip = inBox(x, y, 0.6, 0.36, 0.32, 0.38);
+      return topSerif || spine || base || cornerTip;
     },
   },
-  // 12. Bold Letter 'R'
   {
-    name: '骑士战旗 · R字纹章',
-    fn: (nx, ny) => {
-      const spine = nx >= -0.88 && nx <= -0.22 && Math.abs(ny) <= 0.92;
+    letter: 'M',
+    title: '字母 M · 群峰双峡',
+    expectedSeconds: 330,
+    fn: (x, y) => {
+      const ax = Math.abs(x);
+      const outerPillar = inBox(ax, y, 0.64, 0, 0.26, 0.92);
+      const diag = sdSegment(ax, y, 0.64, -0.72, 0.0, 0.28) <= 0.25;
+      const centerDrop = inBox(x, y, 0, 0.15, 0.24, 0.42);
+      return outerPillar || diag || centerDrop;
+    },
+  },
+  {
+    letter: 'N',
+    title: '字母 N · 斜阳回廊',
+    expectedSeconds: 300,
+    fn: (x, y) => {
+      const leftPillar = inBox(x, y, -0.58, 0, 0.3, 0.92);
+      const rightPillar = inBox(x, y, 0.58, 0, 0.3, 0.92);
+      const diag = sdSegment(x, y, -0.48, -0.68, 0.48, 0.68) <= 0.27;
+      return leftPillar || rightPillar || diag;
+    },
+  },
+  {
+    letter: 'O',
+    title: '字母 O · 永恒星环',
+    expectedSeconds: 280,
+    fn: (x, y) => {
+      return inRing(x, y, 0, 0, 0.88, 0.92, 0.38);
+    },
+  },
+  {
+    letter: 'P',
+    title: '字母 P · 皇家权杖',
+    expectedSeconds: 270,
+    fn: (x, y) => {
+      const spine = inBox(x, y, -0.56, 0, 0.32, 0.92);
       const topBowl =
-        Math.hypot((nx + 0.05) * 0.88, (ny + 0.42) * 1.1) <= 0.66 &&
-        Math.hypot((nx + 0.02) * 1.0, (ny + 0.42) * 1.15) >= 0.22;
-      const leg = sdSegment(nx, ny, -0.15, 0.02, 0.65, 0.82) <= 0.26;
-      const topBar = ny >= -0.92 && ny <= -0.62 && nx >= -0.88 && nx <= 0.35;
-      return spine || topBowl || leg || topBar;
-    },
-  },
-  // 13. Ornate Chinese Lantern
-  {
-    name: '盛世华灯 · 宫灯迷阵',
-    fn: (nx, ny) => {
-      const body = Math.hypot(nx * 0.92, ny * 1.08) <= 0.86;
-      const topCap = Math.abs(ny + 0.82) <= 0.14 && Math.abs(nx) <= 0.52;
-      const botCap = Math.abs(ny - 0.82) <= 0.14 && Math.abs(nx) <= 0.52;
-      const slitL = Math.abs(nx + 0.35) <= 0.11 && Math.abs(ny) <= 0.42;
-      const slitR = Math.abs(nx - 0.35) <= 0.11 && Math.abs(ny) <= 0.42;
-      return (body || topCap || botCap) && !slitL && !slitR;
-    },
-  },
-  // 14. Four-Leaf Clover
-  {
-    name: '四叶奇迹 · 幸运草堂',
-    fn: (nx, ny) => {
-      const ax = Math.abs(nx);
-      const ay = Math.abs(ny);
-      const leaf = Math.hypot(ax - 0.4, ay - 0.4) <= 0.48;
-      const core = Math.hypot(nx, ny) <= 0.34;
-      const hole = Math.hypot(ax - 0.48, ay - 0.48) < 0.14;
-      return (leaf || core) && !hole;
-    },
-  },
-  // 15. Bold Letter 'Q'
-  {
-    name: '深渊之眼 · Q字魔戒',
-    fn: (nx, ny) => {
-      const ring = sdRing(nx, ny, 0, -0.04, 0.62, 0.28) <= 0;
-      const tail = sdSegment(nx, ny, 0.08, 0.15, 0.72, 0.82) <= 0.24;
-      const innerBar = Math.abs(ny + 0.04) <= 0.14 && Math.abs(nx) <= 0.38;
-      return ring || tail || innerBar;
-    },
-  },
-  // 16. Royal Crown
-  {
-    name: '至尊王冠 · 黄金冕旒',
-    fn: (nx, ny) => {
-      const base = ny >= 0.28 && ny <= 0.88 && Math.abs(nx) <= 0.9;
-      const midBand = ny >= -0.25 && ny <= 0.35 && Math.abs(nx) <= 0.86;
-      const leftPeak = sdSegment(nx, ny, -0.75, 0.2, -0.82, -0.78) <= 0.22;
-      const rightPeak = sdSegment(nx, ny, 0.75, 0.2, 0.82, -0.78) <= 0.22;
-      const centerPeak = sdSegment(nx, ny, 0, 0.25, 0, -0.85) <= 0.24;
-      const diagL = sdSegment(nx, ny, -0.78, -0.68, 0, 0.1) <= 0.2;
-      const diagR = sdSegment(nx, ny, 0.78, -0.68, 0, 0.1) <= 0.2;
-      const jewelHole = Math.abs(ny - 0.56) <= 0.12 && Math.abs( Math.abs(nx) - 0.42 ) <= 0.14;
-      return (base || midBand || leftPeak || rightPeak || centerPeak || diagL || diagR) && !jewelHole;
-    },
-  },
-  // 17. Bold Letter 'K'
-  {
-    name: '破晓之刃 · K字战戟',
-    fn: (nx, ny) => {
-      const spine = nx >= -0.88 && nx <= -0.22 && Math.abs(ny) <= 0.92;
-      const upperArm = sdSegment(nx, ny, -0.3, 0.05, 0.68, -0.78) <= 0.27;
-      const lowerArm = sdSegment(nx, ny, -0.2, -0.05, 0.68, 0.78) <= 0.27;
-      const crossBlock = Math.abs(ny) <= 0.25 && nx >= -0.88 && nx <= 0.25;
-      return spine || upperArm || lowerArm || crossBlock;
-    },
-  },
-  // 18. Owl Guardian
-  {
-    name: '暗夜枭雄 · 守望图腾',
-    fn: (nx, ny) => {
-      const body = Math.hypot(nx * 0.95, (ny - 0.12) * 0.92) <= 0.86;
-      const head = Math.hypot(nx * 1.0, (ny + 0.52) * 1.2) <= 0.78;
-      const earL = sdSegment(nx, ny, -0.45, -0.5, -0.75, -0.88) <= 0.22;
-      const earR = sdSegment(nx, ny, 0.45, -0.5, 0.75, -0.88) <= 0.22;
-      const eyeL = Math.hypot(nx + 0.34, ny + 0.42) < 0.18;
-      const eyeR = Math.hypot(nx - 0.34, ny + 0.42) < 0.18;
-      const bellyHole = Math.hypot(nx, ny - 0.38) < 0.2;
-      return (body || head || earL || earR) && !eyeL && !eyeR && !bellyHole;
-    },
-  },
-  // 19. Bold Number '2' / Swan
-  {
-    name: '凌波天鹅 · 贰字迷局',
-    fn: (nx, ny) => {
-      const topArc =
-        ny <= 0.05 &&
-        sdRing(nx, (ny + 0.42) * 1.1, 0, 0, 0.5, 0.28) <= 0 &&
-        !(nx < -0.25 && ny > -0.25);
-      const diag = sdSegment(nx, ny, 0.52, -0.25, -0.62, 0.72) <= 0.27;
-      const base = ny >= 0.48 && ny <= 0.92 && Math.abs(nx) <= 0.88;
-      return topArc || diag || base;
-    },
-  },
-  // 20. Bold Number '5'
-  {
-    name: '五岳独尊 · 伍字矩阵',
-    fn: (nx, ny) => {
-      const topBar = ny >= -0.92 && ny <= -0.52 && nx >= -0.86 && nx <= 0.82;
-      const leftDrop = nx >= -0.86 && nx <= -0.24 && ny >= -0.92 && ny <= 0.08;
-      const midBar = Math.abs(ny + 0.05) <= 0.22 && nx >= -0.86 && nx <= 0.45;
-      const botLoop =
-        ny >= -0.2 &&
-        sdRing(nx, (ny - 0.38) * 1.08, 0.02, 0, 0.5, 0.28) <= 0 &&
-        !(nx < -0.35 && ny < 0.42 && ny > 0.08);
-      return topBar || leftDrop || midBar || botLoop;
-    },
-  },
-  // 21. Bold Number '6'
-  {
-    name: '六合乾坤 · 陆字旋涡',
-    fn: (nx, ny) => {
-      const outerC = sdRing(nx, ny * 0.92, 0.05, 0, 0.62, 0.27) <= 0 && !(nx > 0.25 && ny < -0.15);
-      const botLoop = sdRing(nx, (ny - 0.35) * 1.1, 0, 0, 0.48, 0.26) <= 0;
-      const bridge = Math.abs(ny - 0.02) <= 0.2 && Math.abs(nx) <= 0.65;
-      return outerC || botLoop || bridge;
-    },
-  },
-  // 22. Bold Number '9'
-  {
-    name: '九霄云外 · 玖字神殿',
-    fn: (nx, ny) => {
-      const outerC = sdRing(nx, ny * 0.92, -0.05, 0, 0.62, 0.27) <= 0 && !(nx < -0.25 && ny > 0.15);
-      const topLoop = sdRing(nx, (ny + 0.35) * 1.1, 0, 0, 0.48, 0.26) <= 0;
-      const bridge = Math.abs(ny + 0.02) <= 0.2 && Math.abs(nx) <= 0.65;
-      return outerC || topLoop || bridge;
-    },
-  },
-  // 23. Bold Letter 'E' & Comb Maze
-  {
-    name: '千层书阁 · E字回廊',
-    fn: (nx, ny) => {
-      const spine = nx >= -0.88 && nx <= -0.25 && Math.abs(ny) <= 0.92;
-      const topBar = ny >= -0.92 && ny <= -0.52 && nx >= -0.88 && nx <= 0.86;
-      const midBar = Math.abs(ny) <= 0.22 && nx >= -0.88 && nx <= 0.72;
-      const botBar = ny >= 0.52 && ny <= 0.92 && nx >= -0.88 && nx <= 0.86;
-      const rightTipTop = nx >= 0.42 && nx <= 0.86 && ny >= -0.92 && ny <= -0.28;
-      const rightTipBot = nx >= 0.42 && nx <= 0.86 && ny >= 0.28 && ny <= 0.92;
-      return spine || topBar || midBar || botBar || rightTipTop || rightTipBot;
-    },
-  },
-  // 24. Bold Letter 'H' Cathedral
-  {
-    name: '双子天桥 · H字连城',
-    fn: (nx, ny) => {
-      const ax = Math.abs(nx);
-      const pillars = ax >= 0.34 && ax <= 0.9 && Math.abs(ny) <= 0.92;
-      const bridge = Math.abs(ny) <= 0.28 && ax <= 0.9;
-      const topArch = ny <= -0.58 && ny >= -0.92 && ax <= 0.65;
-      const botArch = ny >= 0.58 && ny <= 0.92 && ax <= 0.65;
-      return pillars || bridge || topArch || botArch;
-    },
-  },
-  // 25. Bold Letter 'W'
-  {
-    name: '沧海龙吟 · W字深谷',
-    fn: (nx, ny) => {
-      const ax = Math.abs(nx);
-      const outerPillar = ax >= 0.46 && ax <= 0.92 && Math.abs(ny) <= 0.9;
-      const vDiagonal = sdSegment(ax, -ny, 0.7, -0.78, 0.0, 0.35) <= 0.25;
-      const centerSpike = ax <= 0.24 && ny >= -0.65 && ny <= 0.25;
-      return outerPillar || vDiagonal || centerSpike;
-    },
-  },
-  // 26. Bold Letter 'Z'
-  {
-    name: '雷霆闪电 · Z字风暴',
-    fn: (nx, ny) => {
-      const topBar = ny >= -0.92 && ny <= -0.48 && Math.abs(nx) <= 0.88;
-      const botBar = ny >= 0.48 && ny <= 0.92 && Math.abs(nx) <= 0.88;
-      const diag = sdSegment(nx, ny, 0.65, -0.6, -0.65, 0.6) <= 0.28;
-      const centerBelt = Math.abs(ny) <= 0.18 && Math.abs(nx) <= 0.55;
-      return topBar || botBar || diag || centerBelt;
-    },
-  },
-  // 27. Bold Letter 'P' & Loop
-  {
-    name: '战锤勋章 · P字圣殿',
-    fn: (nx, ny) => {
-      const spine = nx >= -0.88 && nx <= -0.22 && Math.abs(ny) <= 0.92;
-      const topBowl =
-        Math.hypot((nx + 0.05) * 0.85, (ny + 0.35) * 1.05) <= 0.72 &&
-        Math.hypot((nx + 0.02) * 1.0, (ny + 0.35) * 1.1) >= 0.23;
-      const foot = ny >= 0.52 && ny <= 0.92 && nx >= -0.88 && nx <= 0.45;
+        Math.hypot((x + 0.04) * 0.86, (y + 0.32) * 1.05) <= 0.72 &&
+        Math.hypot((x + 0.02) * 1.05, (y + 0.32) * 1.1) >= 0.24;
+      const foot = inBox(x, y, -0.38, 0.72, 0.48, 0.2);
       return spine || topBowl || foot;
     },
   },
-  // 28. Anchor of Poseidon
   {
-    name: '海神巨锚 · 深渊铁壁',
-    fn: (nx, ny) => {
-      const ring = sdRing(nx, ny, 0, -0.58, 0.26, 0.14) <= 0;
-      const shaft = Math.abs(nx) <= 0.22 && ny >= -0.42 && ny <= 0.88;
-      const crossbar = Math.abs(ny + 0.16) <= 0.18 && Math.abs(nx) <= 0.72;
-      const fluke =
-        ny >= 0.05 &&
-        sdRing(nx, (ny - 0.1) * 1.05, 0, 0, 0.68, 0.24) <= 0;
-      return ring || shaft || crossbar || fluke;
+    letter: 'Q',
+    title: '字母 Q · 深渊魔戒',
+    expectedSeconds: 320,
+    fn: (x, y) => {
+      const ring = inRing(x, y, 0, -0.05, 0.86, 0.86, 0.36);
+      const tail = sdSegment(x, y, 0.1, 0.2, 0.72, 0.82) <= 0.26;
+      return ring || tail;
     },
   },
-  // 29. Celtic Shield Knot
   {
-    name: '凯尔特盾 · 圣堂盘结',
-    fn: (nx, ny) => {
-      const oct = Math.abs(nx) + Math.abs(ny) <= 1.38 && Math.max(Math.abs(nx), Math.abs(ny)) <= 0.92;
-      const ax = Math.abs(nx);
-      const ay = Math.abs(ny);
-      const windowHole = ax >= 0.24 && ax <= 0.52 && ay >= 0.24 && ay <= 0.52;
-      return oct && !windowHole;
+    letter: 'R',
+    title: '字母 R · 骑士纹章',
+    expectedSeconds: 320,
+    fn: (x, y) => {
+      const spine = inBox(x, y, -0.56, 0, 0.32, 0.92);
+      const topBowl =
+        Math.hypot((x + 0.04) * 0.86, (y + 0.4) * 1.1) <= 0.68 &&
+        Math.hypot((x + 0.0) * 1.05, (y + 0.4) * 1.15) >= 0.23;
+      const leg = sdSegment(x, y, -0.15, 0.02, 0.64, 0.78) <= 0.27;
+      const topBar = inBox(x, y, -0.25, -0.72, 0.55, 0.2);
+      return spine || topBowl || leg || topBar;
     },
   },
-  // 30. Yin-Yang Dual Vortex
   {
-    name: '太极两仪 · 阴阳双鱼',
-    fn: (nx, ny) => {
-      const d = Math.hypot(nx, ny);
-      const eye1 = Math.hypot(nx, ny + 0.45) < 0.18;
-      const eye2 = Math.hypot(nx, ny - 0.45) < 0.18;
-      return d <= 0.94 && !eye1 && !eye2;
+    letter: 'S',
+    title: '字母 S · 灵蛇盘踞',
+    expectedSeconds: 300,
+    fn: (x, y) => {
+      const topLoop =
+        y <= 0.12 &&
+        inRing(x, y, 0, -0.42, 0.82, 0.52, 0.28) &&
+        !(x > 0.2 && y > -0.32);
+      const botLoop =
+        y >= -0.12 &&
+        inRing(x, y, 0, 0.42, 0.82, 0.52, 0.28) &&
+        !(x < -0.2 && y < 0.32);
+      const diag = sdSegment(x, y, -0.46, -0.24, 0.46, 0.24) <= 0.27;
+      return topLoop || botLoop || diag;
+    },
+  },
+  {
+    letter: 'T',
+    title: '字母 T · 雷神战锤',
+    expectedSeconds: 260,
+    fn: (x, y) => {
+      const topBar = inBox(x, y, 0, -0.62, 0.9, 0.32);
+      const topEars = inBox(Math.abs(x), y, 0.68, -0.4, 0.24, 0.3);
+      const stem = inBox(x, y, 0, 0.08, 0.44, 0.84);
+      const base = inBox(x, y, 0, 0.72, 0.64, 0.22);
+      return topBar || topEars || stem || base;
+    },
+  },
+  {
+    letter: 'U',
+    title: '字母 U · 深谷马蹄',
+    expectedSeconds: 270,
+    fn: (x, y) => {
+      const ax = Math.abs(x);
+      const pillars = inBox(ax, y, 0.58, -0.22, 0.3, 0.7);
+      const bottomArc = y >= 0.1 && inRing(x, y, 0, 0.28, 0.88, 0.64, 0.35);
+      return pillars || bottomArc;
+    },
+  },
+  {
+    letter: 'V',
+    title: '字母 V · 胜利双翼',
+    expectedSeconds: 260,
+    fn: (x, y) => {
+      const ax = Math.abs(x);
+      const wing = sdSegment(ax, y, 0.66, -0.74, 0.04, 0.74) <= 0.28;
+      const topSerif = inBox(ax, y, 0.62, -0.72, 0.26, 0.2);
+      const tip = inBox(x, y, 0, 0.68, 0.32, 0.24);
+      return wing || topSerif || tip;
+    },
+  },
+  {
+    letter: 'W',
+    title: '字母 W · 沧海龙吟',
+    expectedSeconds: 340,
+    fn: (x, y) => {
+      const ax = Math.abs(x);
+      const outerPillar = inBox(ax, y, 0.64, 0, 0.26, 0.92);
+      const diag = sdSegment(ax, -y, 0.64, -0.72, 0.0, 0.28) <= 0.25;
+      const centerPeak = inBox(x, y, 0, -0.15, 0.24, 0.42);
+      return outerPillar || diag || centerPeak;
+    },
+  },
+  {
+    letter: 'X',
+    title: '字母 X · 星十字刃',
+    expectedSeconds: 280,
+    fn: (x, y) => {
+      const d1 = sdSegment(x, y, -0.64, -0.74, 0.64, 0.74) <= 0.27;
+      const d2 = sdSegment(x, y, 0.64, -0.74, -0.64, 0.74) <= 0.27;
+      const serifs = inBox(Math.abs(x), Math.abs(y), 0.56, 0.74, 0.3, 0.18);
+      return d1 || d2 || serifs;
+    },
+  },
+  {
+    letter: 'Y',
+    title: '字母 Y · 圣杯分岔',
+    expectedSeconds: 260,
+    fn: (x, y) => {
+      const ax = Math.abs(x);
+      const upperFork = sdSegment(ax, y, 0.64, -0.74, 0.0, 0.05) <= 0.28;
+      const stem = inBox(x, y, 0, 0.42, 0.36, 0.5);
+      const base = inBox(x, y, 0, 0.74, 0.54, 0.18);
+      return upperFork || stem || base;
+    },
+  },
+  {
+    letter: 'Z',
+    title: '字母 Z · 雷霆折光',
+    expectedSeconds: 280,
+    fn: (x, y) => {
+      const topBar = inBox(x, y, 0, -0.68, 0.86, 0.24);
+      const botBar = inBox(x, y, 0, 0.68, 0.86, 0.24);
+      const diag = sdSegment(x, y, 0.62, -0.58, -0.62, 0.58) <= 0.27;
+      const centerBelt = inBox(x, y, 0, 0, 0.48, 0.18);
+      return topBar || botBar || diag || centerBelt;
     },
   },
 ];
-
-const DIFFICULTY_TIERS = [
-  { maxId: 20, label: '高密初阶', baseRows: 36, baseCols: 30, expectedSec: 360, minLen: 3, maxLen: 8 },
-  { maxId: 50, label: '高密进阶', baseRows: 38, baseCols: 32, expectedSec: 450, minLen: 3, maxLen: 9 },
-  { maxId: 80, label: '烧脑大师', baseRows: 40, baseCols: 34, expectedSec: 540, minLen: 3, maxLen: 10 },
-  { maxId: 100, label: '传奇宗师', baseRows: 42, baseCols: 36, expectedSec: 600, minLen: 3, maxLen: 10 },
-];
-
-/**
- * Apply subtle organic variations (rotations/mirrors/inner carve patterns) for levels 31..100
- * while keeping Level 17 strictly locked to the iconic Bold 'B' from the screenshot!
- */
-function buildLevelDefinition(id) {
-  const tier = DIFFICULTY_TIERS.find(t => id <= t.maxId) || DIFFICULTY_TIERS[DIFFICULTY_TIERS.length - 1];
-
-  // Ensure Level 17 is specifically the Bold 'B' from the user's screenshot!
-  let builderIdx;
-  if (id === 17) {
-    builderIdx = 0; // Bold 'B'
-  } else if (id === 1) {
-    builderIdx = 0; // Let Level 1 also start with the iconic high-density Bold 'B' style!
-  } else if (id === 2) {
-    builderIdx = 1; // Bold 'S' Serpent
-  } else {
-    builderIdx = (id * 7 + Math.floor(id / 3)) % SHAPE_BUILDERS.length;
-  }
-
-  const baseBuilder = SHAPE_BUILDERS[builderIdx];
-  const variant = Math.floor((id - 1) / SHAPE_BUILDERS.length);
-
-  const rows = id === 17 ? 38 : tier.baseRows;
-  const cols = id === 17 ? 32 : tier.baseCols;
-
-  const mask = buildHighDensityMask(rows, cols, (nx, ny, r, c) => {
-    let x = nx;
-    let y = ny;
-    // Apply symmetry/orientation variations on higher cycles (except Level 17 which stays canonical)
-    if (id !== 17) {
-      if (variant === 1) {
-        x = -nx;
-      } else if (variant === 2) {
-        y = -ny;
-      } else if (variant >= 3) {
-        x = -nx;
-        y = -ny;
-      }
-    }
-    return baseBuilder.fn(x, y, r, c, rows, cols);
-  });
-
-  const suffix = variant > 0 && id !== 17 ? ` · 贰式` : '';
-  const name = id === 17 ? '经典17关 · B字迷宫' : `${baseBuilder.name}${suffix}`;
-
+const LEVEL_DEFINITIONS = ALPHABET_SHAPES.map((item, idx) => {
+  const id = idx + 1;
+  const rows = 38;
+  const cols = 32;
   return {
     id,
-    name,
-    difficulty: tier.label,
-    expectedSeconds: tier.expectedSec,
-    seed: 10000 + id * 313,
-    minSnakeLen: tier.minLen,
-    maxSnakeLen: tier.maxLen,
-    mask,
+    letter: item.letter,
+    name: item.title,
+    difficulty: idx < 8 ? '字母初阶' : idx < 18 ? '曲折进阶' : '烧脑大师',
+    expectedSeconds: item.expectedSeconds,
+    seed: 20260 + id * 509,
+    minSnakeLen: 2,
+    maxSnakeLen: 40,
+    mask: buildLetterMask(rows, cols, item.fn),
   };
-}
-const LEVEL_DEFINITIONS = Array.from({ length: 100 }, (_, i) =>
-  buildLevelDefinition(i + 1)
-);
+});
 
 
 // === [src/engine/solver.js] ===
@@ -1760,11 +1691,23 @@ function verifySolvable(arrows, rows, cols) {
 
 // === [src/engine/generator.js] ===
 /**
- * 100% Solvable Procedural Arrow Generator, Shuffler, and Restart-Extender
- * for 《一箭又一箭》 (Arrow by Arrow)
+ * Classic Maze + Cut-and-Orient Arrow Generator for 《一箭又一箭》 (26 Alphabet Edition)
+ *
+ * Two-Stage Architecture:
+ * Stage 1 (`buildClassicMazeGraph`):
+ *   Generates an authentic Classic Maze on the letter grid using Hunt-and-Kill +
+ *   Wall-Follower Spiral Coiling, naturally producing:
+ *   - Paperclip Spirals (回形针弯: 3-6 consecutive same-chirality 90° turns coiling into rooms)
+ *   - U-Hairpins & C-Channels (U型折返弯: 2 same-chirality 90° turns with parallel legs)
+ *   - Architectural L-Corridors (L型弯: 1 crisp 90° turn joining long straight corridors)
+ *   - Long Straight Runs & Short Pins (纯直线长矛与短插销: 0 turns)
+ *   - Classic Maze Chicanes (蛇形弯: alternating turns, strictly controlled at ~12-18%)
+ *
+ * Stage 2 (`partitionCellsIntoArrows` via Maze Cut-and-Orient):
+ *   Finds maze corridor segments `(p -> h)` with a clear line-of-sight exit ray,
+ *   "cuts an opening" (开一个口) right in front of `h`, attaches an arrowhead at `h`,
+ *   and traces backwards along the Classic Maze corridor to slice out 100% solvable arrows!
  */
-
-// Exact 8-color pastel neon palette extracted from the user's 《一箭又一箭》 screenshots
 const ARROW_PALETTE = [
   '#f08cae', // Coral Pink
   '#b689e8', // Lavender Purple
@@ -1782,10 +1725,6 @@ const DIRS = [
   { dr: 0, dc: -1 }, // LEFT
   { dr: 0, dc: 1 },  // RIGHT
 ];
-
-/**
- * Deterministic seeded PRNG (Mulberry32)
- */
 function createRNG(seed = 12345) {
   let s = seed >>> 0;
   return function rng() {
@@ -1797,30 +1736,161 @@ function createRNG(seed = 12345) {
 }
 
 /**
- * Check if ray from (hr, hc) in direction (dr, dc) is completely clear of any cell in `occupiedGrid`
- * Returns { clear: boolean, passedRemovedCount: number }
+ * 2D cross product of two orthogonal unit step vectors:
+ * +1 = 90° clockwise turn (Right turn)
+ * -1 = 90° counter-clockwise turn (Left turn)
+ *  0 = straight or 180°
  */
-function checkRayOnGrid(hr, hc, dr, dc, rows, cols, occupiedGrid, peeledGrid = null) {
+function turnCross(d1, d2) {
+  return d1.dc * d2.dr - d1.dr * d2.dc;
+}
+
+/**
+ * Count 90-degree bends in a path of cells
+ */
+function countPathTurns(cells) {
+  let turns = 0;
+  for (let i = 1; i < cells.length - 1; i++) {
+    const dr1 = cells[i].r - cells[i - 1].r;
+    const dc1 = cells[i].c - cells[i - 1].c;
+    const dr2 = cells[i + 1].r - cells[i].r;
+    const dc2 = cells[i + 1].c - cells[i].c;
+    if (dr1 !== dr2 || dc1 !== dc2) turns++;
+  }
+  return turns;
+}
+
+/**
+ * Classify an arrow's geometric bend family for verification & analysis:
+ * - 'STRAIGHT': 0 turns (pure straight pin or long spear)
+ * - 'L_BEND': 1 turn (L-shaped corridor)
+ * - 'PAPERCLIP': >= 3 turns where consecutive same-chirality turns form a spiral / paperclip coil
+ * - 'U_BEND': >= 2 turns dominated by same-chirality U-channel / hairpin foldback
+ * - 'SERPENT': alternating left-right S-turns
+ */
+function classifyArrowShape(cells) {
+  const turnSigns = [];
+  let prevDir = null;
+  for (let i = 1; i < cells.length; i++) {
+    const curDir = {
+      dr: cells[i].r - cells[i - 1].r,
+      dc: cells[i].c - cells[i - 1].c,
+    };
+    if (prevDir && (curDir.dr !== prevDir.dr || curDir.dc !== prevDir.dc)) {
+      turnSigns.push(turnCross(prevDir, curDir));
+    }
+    prevDir = curDir;
+  }
+
+  const t = turnSigns.length;
+  if (t === 0) return 'STRAIGHT';
+  if (t === 1) return 'L_BEND';
+
+  // Count consecutive same-sign turn pairs (e.g. R->R or L->L) vs alternating pairs (R->L or L->R)
+  let sameSignPairs = 0;
+  let maxSameRun = 1;
+  let curRun = 1;
+  for (let i = 1; i < t; i++) {
+    if (turnSigns[i] === turnSigns[i - 1]) {
+      sameSignPairs++;
+      curRun++;
+      if (curRun > maxSameRun) maxSameRun = curRun;
+    } else {
+      curRun = 1;
+    }
+  }
+
+  if (maxSameRun >= 3 || (t >= 3 && sameSignPairs >= t - 2)) {
+    return 'PAPERCLIP';
+  }
+  if (maxSameRun >= 2 || sameSignPairs * 2 >= t - 1) {
+    return 'U_BEND';
+  }
+  return 'SERPENT';
+}
+
+function dirToIdx(dr, dc) {
+  if (dr === -1) return 0; // UP
+  if (dr === 1) return 1;  // DOWN
+  if (dc === -1) return 2; // LEFT
+  return 3;                // RIGHT
+}
+
+function checkRayOnGrid(
+  hr,
+  hc,
+  dr,
+  dc,
+  rows,
+  cols,
+  occupiedGrid,
+  peeledGrid = null,
+  peeledStepGrid = null,
+  peeledDirGrid = null
+) {
   let r = hr + dr;
   let c = hc + dc;
   let passedPeeled = 0;
+  let latestBlockerStep = 0;
+  let latestBlockerDir = -1;
+  let orthoBlockers = 0;
+  let sameDirBlockers = 0;
+  let oppDirBlockers = 0;
+  let lastSeenStep = -1;
+  let distinctBlockers = 0;
+  const candDirIdx = dirToIdx(dr, dc);
+
   while (r >= 0 && r < rows && c >= 0 && c < cols) {
     const idx = r * cols + c;
     if (occupiedGrid[idx] === 1) {
-      return { clear: false, passedPeeled: 0 };
+      return {
+        clear: false,
+        passedPeeled: 0,
+        latestBlockerStep: 0,
+        latestBlockerDir: -1,
+        orthoBlockers: 0,
+        sameDirBlockers: 0,
+        oppDirBlockers: 0,
+        distinctBlockers: 0,
+      };
     }
     if (peeledGrid && peeledGrid[idx] === 1) {
       passedPeeled++;
+      if (peeledStepGrid && peeledDirGrid) {
+        const bStep = peeledStepGrid[idx];
+        const bDir = peeledDirGrid[idx];
+        if (bStep !== lastSeenStep) {
+          distinctBlockers++;
+          lastSeenStep = bStep;
+        }
+        if (bStep > latestBlockerStep) {
+          latestBlockerStep = bStep;
+          latestBlockerDir = bDir;
+        }
+        if (bDir === candDirIdx) {
+          sameDirBlockers++;
+        } else if ((bDir < 2) !== (candDirIdx < 2)) {
+          orthoBlockers++;
+        } else {
+          oppDirBlockers++;
+        }
+      }
     }
     r += dr;
     c += dc;
   }
-  return { clear: true, passedPeeled };
+  return {
+    clear: true,
+    passedPeeled,
+    latestBlockerStep,
+    latestBlockerDir,
+    orthoBlockers,
+    sameDirBlockers,
+    oppDirBlockers,
+    distinctBlockers,
+  };
 }
 
-/**
- * Count orthogonal neighbors of (r, c) that have `grid[idx] === 1`
- */
 function countNeighbors(r, c, rows, cols, grid) {
   let count = 0;
   for (const { dr, dc } of DIRS) {
@@ -1833,10 +1903,6 @@ function countNeighbors(r, c, rows, cols, grid) {
   return count;
 }
 
-/**
- * Check if setting `grid[cellIdx] = 0` would create any degree-0 (isolated single cell) neighbor in `grid`,
- * EXCEPT possibly `allowSingleIdx` (when we are about to step into `allowSingleIdx` next).
- */
 function createsIsolatedNeighbor(r, c, rows, cols, grid, allowSingleIdx = -1) {
   for (const { dr, dc } of DIRS) {
     const nr = r + dr;
@@ -1844,7 +1910,6 @@ function createsIsolatedNeighbor(r, c, rows, cols, grid, allowSingleIdx = -1) {
     if (nr >= 0 && nr < rows && nc >= 0 && nc < cols) {
       const nIdx = nr * cols + nc;
       if (grid[nIdx] === 1 && nIdx !== allowSingleIdx) {
-        // Since (r, c) is currently 0 (already temporarily removed), if neighbor has 0 neighbors now, it's isolated!
         if (countNeighbors(nr, nc, rows, cols, grid) === 0) {
           return true;
         }
@@ -1855,16 +1920,549 @@ function createsIsolatedNeighbor(r, c, rows, cols, grid, allowSingleIdx = -1) {
 }
 
 /**
- * Partition the target cells (`targetMask` = Uint8Array(rows*cols)) into 100% solvable winding arrows,
- * while treating `fixedObstacleGrid` (Uint8Array(rows*cols)) as permanent obstacles that rays cannot cross.
+ * ============================================================================
+ * STAGE 1: BUILD CLASSIC MAZE GRAPH (`buildClassicMazeGraph`)
+ * Uses Hunt-and-Kill + Wall-Follower Spiral Coiling to carve authentic maze
+ * corridors across the letter grid.
+ * Returns `mazeAdj`: Array<Set<number>> where `mazeAdj[u]` contains the cell
+ * indices connected to `u` in the Classic Maze.
+ * ============================================================================
+ */
+function buildClassicMazeGraph(rows, cols, activeGrid, rng) {
+  const N = rows * cols;
+  const unvisited = new Uint8Array(activeGrid);
+  const mazeAdj = Array.from({ length: N }, () => new Set());
+
+  const addMazeEdge = (u, v) => {
+    mazeAdj[u].add(v);
+    mazeAdj[v].add(u);
+  };
+
+  let remainingCount = 0;
+  for (let i = 0; i < N; i++) {
+    if (unvisited[i] === 1) remainingCount++;
+  }
+
+  let passIndex = 0;
+  while (remainingCount > 0) {
+    // HUNT PHASE: Find an unvisited cell on the outer perimeter of the unvisited set
+    let startR = -1;
+    let startC = -1;
+    let bestBoundaryScore = -1e9;
+
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const idx = r * cols + c;
+        if (unvisited[idx] !== 1) continue;
+        const deg = countNeighbors(r, c, rows, cols, unvisited);
+        if (deg === 0) {
+          // Single leftover cell: attach it to an already-carved adjacent maze corridor endpoint if possible
+          unvisited[idx] = 0;
+          remainingCount--;
+          for (const { dr, dc } of DIRS) {
+            const nr = r + dr;
+            const nc = c + dc;
+            if (nr >= 0 && nr < rows && nc >= 0 && nc < cols) {
+              const nIdx = nr * cols + nc;
+              if (activeGrid[nIdx] === 1 && mazeAdj[nIdx].size <= 1) {
+                addMazeEdge(idx, nIdx);
+                break;
+              }
+            }
+          }
+          continue;
+        }
+        // Prefer degree-1 or degree-2 boundary cells to start carving a clean wall-following corridor
+        const score = (4 - deg) * 10 + rng() * 6;
+        if (score > bestBoundaryScore) {
+          bestBoundaryScore = score;
+          startR = r;
+          startC = c;
+        }
+      }
+    }
+
+    if (startR === -1 || remainingCount <= 0) break;
+
+    // Choose a Classic Maze carving personality for this corridor:
+    // 0: Wall-Hugging Paperclip Spiral (locks chirality = +1 or -1, coils inward!)
+    // 1: Long Perimeter L/U Corridor (long straight runs of 6-14 cells + same-chirality corners)
+    // 2: Classic Stepped Maze Chicane (occasional alternating turn)
+    const modeRoll = (passIndex * 0.37 + rng() * 0.63) % 1.0;
+    const carverMode =
+      modeRoll < 0.52 ? 'SPIRAL_ROOM' : modeRoll < 0.88 ? 'PERIMETER_LU' : 'CHICANE';
+    const lockedSpin = rng() < 0.5 ? 1 : -1;
+    passIndex++;
+
+    let curR = startR;
+    let curC = startC;
+    let curIdx = curR * cols + curC;
+    unvisited[curIdx] = 0;
+    remainingCount--;
+
+    let prevDir = null;
+    let straightSteps = 0;
+    let legTarget =
+      carverMode === 'PERIMETER_LU'
+        ? 6 + Math.floor(rng() * 8)
+        : carverMode === 'SPIRAL_ROOM'
+          ? 4 + Math.floor(rng() * 5)
+          : 2 + Math.floor(rng() * 3);
+
+    // KILL / WALK PHASE: Carve a long non-branching maze corridor
+    while (remainingCount > 0) {
+      const options = [];
+      for (const { dr, dc } of DIRS) {
+        const nr = curR + dr;
+        const nc = curC + dc;
+        if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue;
+        const nIdx = nr * cols + nc;
+        if (unvisited[nIdx] !== 1) continue;
+
+        // Check if stepping to nIdx isolates any OTHER neighbor of cur
+        unvisited[nIdx] = 0;
+        let isolatesOther = false;
+        for (const d2 of DIRS) {
+          const cr = curR + d2.dr;
+          const cc = curC + d2.dc;
+          if (cr >= 0 && cr < rows && cc >= 0 && cc < cols) {
+            const cIdx = cr * cols + cc;
+            if (unvisited[cIdx] === 1 && countNeighbors(cr, cc, rows, cols, unvisited) === 0) {
+              isolatesOther = true;
+              break;
+            }
+          }
+        }
+        const nextDeg = countNeighbors(nr, nc, rows, cols, unvisited);
+        unvisited[nIdx] = 1;
+
+        if (isolatesOther) continue;
+
+        const isStraight = prevDir && dr === prevDir.dr && dc === prevDir.dc;
+        const cross = prevDir ? turnCross(prevDir, { dr, dc }) : 0;
+
+        let score = rng() * 1.5;
+        // Wall-hugging bonus: classic mazes love hugging boundaries (nextDeg == 1 or 2)
+        if (nextDeg === 1 || nextDeg === 2) score += 6.0;
+
+        if (!prevDir) {
+          score += 5.0;
+        } else if (carverMode === 'SPIRAL_ROOM') {
+          if (isStraight && straightSteps < legTarget) {
+            score += 18.0;
+          } else if (cross === lockedSpin) {
+            // Turn in the locked spiral direction (Paperclip / U-bend)!
+            score += straightSteps >= 2 ? 22.0 : 8.0;
+          } else if (cross === -lockedSpin) {
+            // Strongly penalize opposite turn so it coils into a paperclip instead of an S-wave!
+            score -= 18.0;
+          }
+        } else if (carverMode === 'PERIMETER_LU') {
+          if (isStraight && straightSteps < legTarget) {
+            score += 24.0;
+          } else if (cross === lockedSpin) {
+            score += 16.0;
+          } else {
+            score -= 14.0;
+          }
+        } else {
+          // CHICANE mode
+          if (isStraight && straightSteps < legTarget) {
+            score += 12.0;
+          } else if (!isStraight) {
+            score += 14.0;
+          }
+        }
+
+        options.push({ nr, nc, nIdx, dr, dc, isStraight, score });
+      }
+
+      if (options.length === 0) break;
+      options.sort((a, b) => b.score - a.score);
+      const pick = options[0];
+
+      addMazeEdge(curIdx, pick.nIdx);
+      unvisited[pick.nIdx] = 0;
+      remainingCount--;
+
+      if (pick.isStraight) {
+        straightSteps++;
+      } else {
+        straightSteps = 1;
+        if (carverMode === 'SPIRAL_ROOM') {
+          // Gradually tighten or vary the spiral leg length as it coils inward
+          legTarget = Math.max(2, legTarget - (rng() < 0.6 ? 1 : 0));
+        }
+      }
+      prevDir = { dr: pick.dr, dc: pick.dc };
+      curR = pick.nr;
+      curC = pick.nc;
+      curIdx = pick.nIdx;
+    }
+  }
+
+  return mazeAdj;
+}
+
+/**
+ * Sample a target cut length along the maze corridor:
+ * Designed to match Image 3 (Letter B) with ~65 - 88 arrows per board:
+ * - ~25% Short Cuts (2 - 4 cells: straight pins & tight L/U hooks)
+ * - ~42% Medium Cuts (5 - 12 cells: L-bends, U-channels, compact paperclips)
+ * - ~33% Long Cuts (13 - 28 cells: large paperclip spirals, deep U-loops, long L-corridors)
+ */
+function sampleMazeCutLength(rng, stepIndex, minLen = 2, maxLen = 28) {
+  const roll = (stepIndex * 0.381966 + rng() * 0.32) % 1.0;
+  if (roll < 0.25) {
+    const lo = Math.max(2, minLen);
+    const hi = Math.min(4, maxLen);
+    return lo + Math.floor(rng() * (hi - lo + 1));
+  } else if (roll < 0.67) {
+    const lo = Math.max(minLen, Math.min(5, maxLen));
+    const hi = Math.max(lo, Math.min(12, maxLen));
+    return lo + Math.floor(rng() * (hi - lo + 1));
+  } else {
+    const lo = Math.max(minLen, Math.min(13, maxLen));
+    const hi = Math.max(lo, Math.min(28, maxLen));
+    return lo + Math.floor(rng() * (hi - lo + 1));
+  }
+}
+
+/**
+ * Sample a Geometric Motif for cutting/extending along the maze:
+ * - 'STRAIGHT' (16%): 0 turns (pure straight arrow)
+ * - 'L_BEND' (24%): 1 turn (clean L-shaped arrow)
+ * - 'U_BEND' (24%): 2 same-chirality turns (U-channel / hairpin foldback)
+ * - 'PAPERCLIP' (24%): 3-6 same-chirality turns (inward-coiling paperclip spiral!)
+ * - 'SERPENT' (12%): alternating turns (S-bend, kept low!)
+ */
+function sampleCutMotif(rng, stepIndex) {
+  const roll = (stepIndex * 0.29 + rng() * 0.71) % 1.0;
+  if (roll < 0.16) return 'STRAIGHT';
+  if (roll < 0.40) return 'L_BEND';
+  if (roll < 0.64) return 'U_BEND';
+  if (roll < 0.88) return 'PAPERCLIP';
+  return 'SERPENT';
+}
+
+/**
+ * ============================================================================
+ * STAGE 2: TRACE & CUT ALONG THE CLASSIC MAZE (`sliceMazeCorridor`)
+ * Starting from the cut opening `chosen = (hr, hc) <- (pr, pc)`, follows the
+ * Classic Maze edges `mazeAdj` backwards (and extends with the chosen motif
+ * when a maze edge was already cut) to slice out a clean arrow!
+ * ============================================================================
+ */
+function sliceMazeCorridor({
+  chosen,
+  targetLen,
+  motif,
+  rows,
+  cols,
+  remaining,
+  mazeAdj,
+  shadowedByFixed,
+  rng,
+}) {
+  const path = [
+    { r: chosen.hr, c: chosen.hc, idx: chosen.hIdx },
+    { r: chosen.pr, c: chosen.pc, idx: chosen.pIdx },
+  ];
+
+  remaining[chosen.hIdx] = 0;
+  remaining[chosen.pIdx] = 0;
+
+  let bestPath = path.map(p => ({ ...p }));
+  let bestScore = -1e9;
+
+  // Determine the max allowed turns for this motif
+  const maxMotifTurns =
+    motif === 'STRAIGHT'
+      ? 0
+      : motif === 'L_BEND'
+        ? 1
+        : motif === 'U_BEND'
+          ? 2
+          : 6;
+
+  // Lock a rotational chirality (+1 clockwise or -1 counter-clockwise) for U_BEND & PAPERCLIP!
+  const lockedSpin = rng() < 0.5 ? 1 : -1;
+
+  const evaluateCutPath = (curPath, turns, sameSpinTurns, oppSpinTurns, mazeEdgesUsed) => {
+    for (let k = 1; k < curPath.length; k++) {
+      const pt = curPath[k];
+      if (createsIsolatedNeighbor(pt.r, pt.c, rows, cols, remaining, -1)) {
+        return -1e9;
+      }
+    }
+    const len = curPath.length;
+    const lenDiff = Math.abs(targetLen - len);
+    let score = -lenDiff * 5.5 + mazeEdgesUsed * 8.0;
+
+    if (motif === 'STRAIGHT') {
+      if (turns === 0) score += 40.0 + len * 3.0;
+      else score -= turns * 35.0;
+    } else if (motif === 'L_BEND') {
+      if (turns === 1) score += 38.0;
+      else if (turns === 0) score += 10.0;
+      else score -= (turns - 1) * 28.0;
+    } else if (motif === 'U_BEND') {
+      if (turns === 2 && oppSpinTurns === 0) score += 45.0;
+      else if (oppSpinTurns > 0) score -= oppSpinTurns * 30.0;
+    } else if (motif === 'PAPERCLIP') {
+      // Reward 3..6 same-chirality turns (true paperclip coil!) and heavily penalize opposite turns
+      score += sameSpinTurns * 18.0 - oppSpinTurns * 32.0;
+      if (sameSpinTurns >= 3 && oppSpinTurns === 0) score += 45.0;
+    } else {
+      // SERPENT
+      score += oppSpinTurns * 12.0;
+    }
+    return score;
+  };
+
+  const initScore = evaluateCutPath(path, 0, 0, 0, chosen.isMazeEdge ? 1 : 0);
+  if (initScore > bestScore) {
+    bestScore = initScore;
+    bestPath = path.map(p => ({ ...p }));
+  }
+
+  if (targetLen <= 2 && initScore > -1e8 && !chosen.forcedNext) {
+    remaining[chosen.hIdx] = 1;
+    remaining[chosen.pIdx] = 1;
+    return bestPath;
+  }
+
+  const maxNodes = targetLen >= 12 ? 180 : 80;
+  let nodesVisited = 0;
+  let foundIdeal = false;
+
+  function dfs(
+    cur,
+    prevDir,
+    firstTurnSpin,
+    straightRun,
+    turns,
+    sameSpinTurns,
+    oppSpinTurns,
+    mazeEdgesUsed,
+    forcedCell
+  ) {
+    if (foundIdeal || nodesVisited >= maxNodes) return;
+    nodesVisited++;
+
+    const curLen = path.length;
+    const sc = evaluateCutPath(path, turns, sameSpinTurns, oppSpinTurns, mazeEdgesUsed);
+    if (sc > bestScore) {
+      bestScore = sc;
+      bestPath = path.map(p => ({ ...p }));
+      if (
+        curLen >= targetLen &&
+        ((motif === 'STRAIGHT' && turns === 0) ||
+          (motif === 'L_BEND' && turns === 1) ||
+          (motif === 'U_BEND' && turns === 2 && oppSpinTurns === 0) ||
+          (motif === 'PAPERCLIP' && sameSpinTurns >= 3 && oppSpinTurns === 0) ||
+          motif === 'SERPENT')
+      ) {
+        foundIdeal = true;
+        return;
+      }
+    }
+
+    const effectiveCap =
+      shadowedByFixed && shadowedByFixed[cur.idx] === 1 ? targetLen + 8 : targetLen;
+    if (curLen >= effectiveCap) return;
+
+    const options = [];
+    for (const { dr, dc } of DIRS) {
+      const nr = cur.r + dr;
+      const nc = cur.c + dc;
+      if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue;
+      const nIdx = nr * cols + nc;
+      if (remaining[nIdx] !== 1) continue;
+      if (forcedCell && forcedCell.idx !== nIdx) continue;
+
+      const isTurn = dr !== prevDir.dr || dc !== prevDir.dc;
+      if (isTurn && turns + 1 > maxMotifTurns && !(shadowedByFixed && shadowedByFixed[nIdx] === 1)) {
+        continue;
+      }
+
+      remaining[nIdx] = 0;
+
+      // Check if cur's other neighbors became degree-0 isolated cells
+      let leftBehindIsolated = false;
+      for (const dCheck of DIRS) {
+        const cr = cur.r + dCheck.dr;
+        const cc = cur.c + dCheck.dc;
+        if (cr >= 0 && cr < rows && cc >= 0 && cc < cols) {
+          const cIdx = cr * cols + cc;
+          if (remaining[cIdx] === 1 && countNeighbors(cr, cc, rows, cols, remaining) === 0) {
+            leftBehindIsolated = true;
+            break;
+          }
+        }
+      }
+      if (leftBehindIsolated) {
+        remaining[nIdx] = 1;
+        continue;
+      }
+
+      let nextForced = null;
+      let nextIsoCount = 0;
+      for (const d2 of DIRS) {
+        const nnr = nr + d2.dr;
+        const nnc = nc + d2.dc;
+        if (nnr >= 0 && nnr < rows && nnc >= 0 && nnc < cols) {
+          const nnIdx = nnr * cols + nnc;
+          if (remaining[nnIdx] === 1 && countNeighbors(nnr, nnc, rows, cols, remaining) === 0) {
+            nextIsoCount++;
+            nextForced = { r: nnr, c: nnc, idx: nnIdx };
+          }
+        }
+      }
+      const degAfter = countNeighbors(nr, nc, rows, cols, remaining);
+      remaining[nIdx] = 1;
+
+      if (nextIsoCount > 1) continue;
+
+      const isMazeEdge = mazeAdj[cur.idx] && mazeAdj[cur.idx].has(nIdx);
+      const isShadowed = shadowedByFixed && shadowedByFixed[nIdx] === 1;
+      const cross = isTurn ? turnCross(prevDir, { dr, dc }) : 0;
+      const desiredSpin = firstTurnSpin !== 0 ? firstTurnSpin : lockedSpin;
+
+      let stepScore = rng() * 1.6;
+      if (isShadowed) stepScore += 22.0;
+
+      // Strongly prefer walking along the Classic Maze edges from Stage 1!
+      if (isMazeEdge) stepScore += 14.0;
+      if (degAfter === 1 || degAfter === 2) stepScore += 4.0;
+
+      if (motif === 'STRAIGHT') {
+        if (!isTurn) stepScore += 30.0;
+        else stepScore -= 40.0;
+      } else if (motif === 'L_BEND') {
+        if (turns === 0) {
+          // Walk straight for 3..8 cells, then make 1 clean 90° turn
+          if (!isTurn && straightRun < Math.max(3, Math.floor(targetLen * 0.55))) {
+            stepScore += 18.0;
+          } else if (isTurn && straightRun >= 2) {
+            stepScore += 22.0;
+          }
+        } else {
+          // After the 1st turn, stay straight for the rest of the L!
+          if (!isTurn) stepScore += 28.0;
+          else stepScore -= 35.0;
+        }
+      } else if (motif === 'U_BEND') {
+        if (!isTurn) {
+          // Long first leg (3..8), short middle base (1..3), long parallel return leg (3..8)
+          const idealLeg = turns === 1 ? 2 : Math.max(3, Math.floor(targetLen * 0.4));
+          if (straightRun < idealLeg) stepScore += 16.0;
+          else stepScore -= 6.0;
+        } else {
+          if (cross === desiredSpin && straightRun >= (turns === 1 ? 1 : 2)) {
+            stepScore += 26.0;
+          } else {
+            stepScore -= 30.0; // Never turn the wrong way in a U-bend!
+          }
+        }
+      } else if (motif === 'PAPERCLIP') {
+        if (!isTurn) {
+          // Paperclip spiral legs: outer legs 3..6 cells, inner legs 2..4 cells
+          const idealLeg = Math.max(2, 5 - Math.floor(turns / 2));
+          if (straightRun < idealLeg) stepScore += 15.0;
+          else stepScore -= 8.0;
+        } else {
+          // MUST turn in the SAME chirality `desiredSpin` to form a Paperclip Spiral (回形针弯)!
+          if (cross === desiredSpin && straightRun >= 2) {
+            stepScore += 28.0;
+          } else if (cross === desiredSpin && straightRun === 1 && turns >= 1) {
+            stepScore += 12.0; // Allow tight inner paperclip core!
+          } else {
+            stepScore -= 35.0; // Block S-turns inside a Paperclip!
+          }
+        }
+      } else {
+        // SERPENT: alternating turns
+        if (!isTurn && straightRun < 3) stepScore += 10.0;
+        else if (isTurn && cross === -desiredSpin && straightRun >= 2) stepScore += 18.0;
+      }
+
+      options.push({
+        r: nr,
+        c: nc,
+        idx: nIdx,
+        dr,
+        dc,
+        isTurn,
+        cross,
+        isMazeEdge,
+        nextForced,
+        stepScore,
+      });
+    }
+
+    options.sort((a, b) => b.stepScore - a.stepScore);
+
+    for (const opt of options) {
+      remaining[opt.idx] = 0;
+      path.push({ r: opt.r, c: opt.c, idx: opt.idx });
+
+      const nextSpin = opt.isTurn
+        ? firstTurnSpin === 0
+          ? opt.cross
+          : firstTurnSpin
+        : firstTurnSpin;
+      const isSameSpin = opt.isTurn && (firstTurnSpin === 0 || opt.cross === firstTurnSpin);
+      const isOppSpin = opt.isTurn && firstTurnSpin !== 0 && opt.cross !== firstTurnSpin;
+
+      dfs(
+        { r: opt.r, c: opt.c, idx: opt.idx },
+        { dr: opt.dr, dc: opt.dc },
+        motif === 'SERPENT' && opt.isTurn ? opt.cross : nextSpin,
+        opt.isTurn ? 1 : straightRun + 1,
+        turns + (opt.isTurn ? 1 : 0),
+        sameSpinTurns + (isSameSpin ? 1 : 0),
+        oppSpinTurns + (isOppSpin ? 1 : 0),
+        mazeEdgesUsed + (opt.isMazeEdge ? 1 : 0),
+        opt.nextForced
+      );
+
+      path.pop();
+      remaining[opt.idx] = 1;
+      if (foundIdeal || nodesVisited >= maxNodes) break;
+    }
+  }
+
+  dfs(
+    { r: chosen.pr, c: chosen.pc, idx: chosen.pIdx },
+    { dr: -chosen.dr, dc: -chosen.dc },
+    0,
+    1,
+    0,
+    0,
+    0,
+    chosen.isMazeEdge ? 1 : 0,
+    chosen.forcedNext || null
+  );
+
+  remaining[chosen.hIdx] = 1;
+  remaining[chosen.pIdx] = 1;
+
+  return bestPath;
+}
+
+/**
+ * Main Two-Stage Generator:
+ * 1. Builds a Classic Maze on `targetGrid` (`buildClassicMazeGraph`)
+ * 2. Cuts openings and attaches arrowheads along the maze corridors (`sliceMazeCorridor`)
  */
 function partitionCellsIntoArrows({
   rows,
   cols,
   targetGrid,
   fixedObstacleGrid = null,
-  minLen = 3,
-  maxLen = 12,
+  minLen = 2,
+  maxLen = 28,
   seed = 1001,
   startId = 1,
 }) {
@@ -1872,11 +2470,13 @@ function partitionCellsIntoArrows({
   const remaining = new Uint8Array(targetGrid);
   const obstacles = new Uint8Array(rows * cols);
   const shadowedByFixed = new Uint8Array(rows * cols);
+
   for (let i = 0; i < rows * cols; i++) {
     if (remaining[i] === 1 || (fixedObstacleGrid && fixedObstacleGrid[i] === 1)) {
       obstacles[i] = 1;
     }
   }
+
   if (fixedObstacleGrid) {
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
@@ -1894,9 +2494,20 @@ function partitionCellsIntoArrows({
       }
     }
   }
-  const peeledGrid = new Uint8Array(rows * cols);
 
-  // First ensure no isolated single cells exist in `remaining`
+  const peeledGrid = new Uint8Array(rows * cols);
+  const peeledStepGrid = new Uint16Array(rows * cols);
+  const peeledDirGrid = new Uint8Array(rows * cols);
+
+  // Interlocking & Multi-Line Dispersion trackers
+  const globalDirCount = [0, 0, 0, 0];
+  const rowHorizDirCount = Array.from({ length: rows }, () => [0, 0, 0, 0]);
+  const colVertDirCount = Array.from({ length: cols }, () => [0, 0, 0, 0]);
+  const placedHeads = []; // { r, c, dirIdx }
+  const dependentsCount = new Uint16Array(512); // How many arrows are directly unlocked by step `s`
+  let unblockedFrontierCount = 0;
+  let prevChosenDirIdx = -1;
+
   const orphanCells = [];
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
@@ -1909,6 +2520,9 @@ function partitionCellsIntoArrows({
     }
   }
 
+  // STAGE 1: Generate the Classic Maze corridor graph on `remaining`!
+  const mazeAdj = buildClassicMazeGraph(rows, cols, remaining, rng);
+
   let totalRemaining = 0;
   for (let i = 0; i < rows * cols; i++) {
     if (remaining[i] === 1) totalRemaining++;
@@ -1916,9 +2530,10 @@ function partitionCellsIntoArrows({
 
   const arrows = [];
   let nextId = startId;
+  let stepIndex = 0;
 
+  // STAGE 2: Cut openings along the Classic Maze corridors and attach arrowheads
   while (totalRemaining > 0) {
-    // Find all valid (head, neck) pairs on the current boundary of `remaining`
     const candidates = [];
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
@@ -1926,15 +2541,26 @@ function partitionCellsIntoArrows({
         if (remaining[hIdx] !== 1) continue;
 
         for (const { dr, dc } of DIRS) {
-          // Neck is at (r - dr, c - dc)
           const pr = r - dr;
           const pc = c - dc;
           if (pr < 0 || pr >= rows || pc < 0 || pc >= cols) continue;
           const pIdx = pr * cols + pc;
           if (remaining[pIdx] !== 1) continue;
 
-          const rayCheck = checkRayOnGrid(r, c, dr, dc, rows, cols, obstacles, peeledGrid);
+          const rayCheck = checkRayOnGrid(
+            r,
+            c,
+            dr,
+            dc,
+            rows,
+            cols,
+            obstacles,
+            peeledGrid,
+            peeledStepGrid,
+            peeledDirGrid
+          );
           if (rayCheck.clear) {
+            const isMazeEdge = mazeAdj[hIdx] && mazeAdj[hIdx].has(pIdx);
             candidates.push({
               hr: r,
               hc: c,
@@ -1944,7 +2570,15 @@ function partitionCellsIntoArrows({
               pIdx,
               dr,
               dc,
+              dirIdx: dirToIdx(dr, dc),
+              isMazeEdge,
               passedPeeled: rayCheck.passedPeeled,
+              latestBlockerStep: rayCheck.latestBlockerStep,
+              latestBlockerDir: rayCheck.latestBlockerDir,
+              orthoBlockers: rayCheck.orthoBlockers,
+              sameDirBlockers: rayCheck.sameDirBlockers,
+              oppDirBlockers: rayCheck.oppDirBlockers,
+              distinctBlockers: rayCheck.distinctBlockers,
             });
           }
         }
@@ -1952,10 +2586,10 @@ function partitionCellsIntoArrows({
     }
 
     if (candidates.length === 0) {
-      // Try absorbing remaining shadowed pocket cells into the tail of an adjacent already-peeled arrow
       let absorbedIntoExisting = false;
       for (let i = arrows.length - 1; i >= 0; i--) {
         const existingArrow = arrows[i];
+        const existDirIdx = dirToIdx(existingArrow.dir.dr, existingArrow.dir.dc);
         let grew = true;
         while (grew) {
           grew = false;
@@ -1967,7 +2601,6 @@ function partitionCellsIntoArrows({
             const nIdx = nr * cols + nc;
             if (remaining[nIdx] !== 1) continue;
 
-            // Ensure (nr, nc) does not lie on the exit ray of existingArrow or any arrow peeled BEFORE existingArrow (0..i)
             let blocksEarlierRay = false;
             for (let j = 0; j <= i; j++) {
               const a = arrows[j];
@@ -1986,6 +2619,8 @@ function partitionCellsIntoArrows({
               remaining[nIdx] = 0;
               obstacles[nIdx] = 0;
               peeledGrid[nIdx] = 1;
+              peeledStepGrid[nIdx] = i + 1;
+              peeledDirGrid[nIdx] = existDirIdx;
               totalRemaining--;
               grew = true;
               absorbedIntoExisting = true;
@@ -1994,6 +2629,7 @@ function partitionCellsIntoArrows({
           }
         }
       }
+
       if (absorbedIntoExisting) {
         for (let r = 0; r < rows; r++) {
           for (let c = 0; c < cols; c++) {
@@ -2010,7 +2646,6 @@ function partitionCellsIntoArrows({
         continue;
       }
 
-      // Fallback if fixedObstacleGrid blocked a deep pocket: relax fixedObstacleGrid for this pocket
       for (let r = 0; r < rows; r++) {
         for (let c = 0; c < cols; c++) {
           const hIdx = r * cols + c;
@@ -2021,7 +2656,18 @@ function partitionCellsIntoArrows({
             if (pr < 0 || pr >= rows || pc < 0 || pc >= cols) continue;
             const pIdx = pr * cols + pc;
             if (remaining[pIdx] !== 1) continue;
-            const rayCheck = checkRayOnGrid(r, c, dr, dc, rows, cols, remaining, peeledGrid);
+            const rayCheck = checkRayOnGrid(
+              r,
+              c,
+              dr,
+              dc,
+              rows,
+              cols,
+              remaining,
+              peeledGrid,
+              peeledStepGrid,
+              peeledDirGrid
+            );
             if (rayCheck.clear) {
               candidates.push({
                 hr: r,
@@ -2032,7 +2678,15 @@ function partitionCellsIntoArrows({
                 pIdx,
                 dr,
                 dc,
+                dirIdx: dirToIdx(dr, dc),
+                isMazeEdge: mazeAdj[hIdx] && mazeAdj[hIdx].has(pIdx),
                 passedPeeled: rayCheck.passedPeeled,
+                latestBlockerStep: rayCheck.latestBlockerStep,
+                latestBlockerDir: rayCheck.latestBlockerDir,
+                orthoBlockers: rayCheck.orthoBlockers,
+                sameDirBlockers: rayCheck.sameDirBlockers,
+                oppDirBlockers: rayCheck.oppDirBlockers,
+                distinctBlockers: rayCheck.distinctBlockers,
               });
             }
           }
@@ -2041,17 +2695,133 @@ function partitionCellsIntoArrows({
       if (candidates.length === 0) break;
     }
 
-    // Score candidates:
-    // Prefer candidates that:
-    // 1. Do not isolate neighbors when removing head + neck
-    // 2. Pass through previously peeled cells (creates rich interlocking dependencies!)
-    // 3. Have low degree (cleans up corners and peninsulas smoothly)
+    const motif = sampleCutMotif(rng, stepIndex);
+    const targetLen =
+      motif === 'STRAIGHT'
+        ? rng() < 0.55
+          ? 2 + Math.floor(rng() * 3) // 2..4 short straight pin
+          : 6 + Math.floor(rng() * 9) // 6..14 long straight spear
+        : sampleMazeCutLength(rng, stepIndex, minLen, maxLen);
+    stepIndex++;
+
+    const avgGlobalDir = arrows.length / 4;
+
+    const scoreCandidate = cand => {
+      const dIdx = cand.dirIdx;
+      const degH = countNeighbors(cand.hr, cand.hc, rows, cols, remaining);
+
+      let w = 10.0 + (cand.isMazeEdge ? 14.0 : 0) + (degH === 1 ? 3.5 : 0) + rng() * 2.2;
+
+      // 1. TIGHT INITIAL FRONTIER (4 QUADRANT SEEDS) & DEEP DEPENDENCY CHAIN:
+      // Allow 4 initial unblocked entry arrows (1 in each direction & spread across the 4 quadrants),
+      // then force all remaining ~95% of arrows to be deeply interlocked (`passedPeeled > 0`)!
+      if (cand.passedPeeled === 0) {
+        if (unblockedFrontierCount >= 4) {
+          w -= 85.0;
+        } else {
+          // Force the 4 initial unblocked arrows to have 4 distinct directions and be far apart!
+          if (globalDirCount[dIdx] > 0) {
+            w -= 60.0;
+          } else {
+            w += 30.0;
+          }
+          if (placedHeads.length > 0) {
+            let minDist = 999;
+            for (const ph of placedHeads) {
+              const d = Math.abs(ph.r - cand.hr) + Math.abs(ph.c - cand.hc);
+              if (d < minDist) minDist = d;
+            }
+            w += Math.min(35.0, minDist * 1.6);
+          }
+        }
+      } else {
+        // Must cross peeled cells!
+        w += 18.0 + Math.min(3, cand.distinctBlockers) * 7.5;
+
+        // Prevent a single obstacle arrow from unlocking 5..8 arrows at once!
+        const depCount = dependentsCount[cand.latestBlockerStep] || 0;
+        if (depCount === 0) {
+          // Chaining off a blocker that hasn't unlocked any arrow yet builds a deep puzzle tree!
+          w += 28.0;
+          if (cand.latestBlockerStep === arrows.length) {
+            w += 14.0; // Direct causal chain from the arrow just peeled
+          }
+        } else {
+          w -= Math.min(depCount, 3) * 18.0;
+        }
+
+        // 2. ORTHOGONAL CROSS-LOCKING vs SAME-DIRECTION CASCADE PENALTY:
+        const bDir = cand.latestBlockerDir;
+        if (bDir >= 0) {
+          if (bDir === dIdx) {
+            // Same direction as its blocker -> clearing blocker creates a trivial same-direction cascade!
+            w -= 48.0;
+          } else if ((bDir < 2) !== (dIdx < 2)) {
+            // Orthogonal 90-degree cross-lock (Horizontal blocks Vertical, Vertical blocks Horizontal)!
+            w += 32.0;
+          } else {
+            // Opposite 180-degree antiparallel lock
+            w += 18.0;
+          }
+        }
+        w += cand.orthoBlockers * 4.0 - cand.sameDirBlockers * 8.0;
+      }
+
+      // 3. LOCAL 9x9 NEIGHBORHOOD DIRECTION DIVERSITY:
+      // Never allow a local cluster of arrows to point in the same direction!
+      let localSameDir = 0;
+      let localSameAxis = 0;
+      for (const ph of placedHeads) {
+        const drAbs = Math.abs(ph.r - cand.hr);
+        const dcAbs = Math.abs(ph.c - cand.hc);
+        if (drAbs <= 4 && dcAbs <= 4) {
+          if (ph.dirIdx === dIdx) {
+            localSameDir += drAbs <= 2 && dcAbs <= 2 ? 2 : 1;
+          } else if ((ph.dirIdx < 2) === (dIdx < 2)) {
+            localSameAxis++;
+          }
+        }
+      }
+      w -= localSameDir * 24.0 + localSameAxis * 6.0;
+
+      // 4. MULTI-LINE DISPERSION FOR HORIZONTAL & VERTICAL ARROWS:
+      // Spread horizontal arrows across many different rows, and vertical arrows across many different columns!
+      if (dIdx >= 2) {
+        // Horizontal arrow (LEFT=2, RIGHT=3) on row `cand.hr`
+        const r = cand.hr;
+        const sameDirOnRow = rowHorizDirCount[r][dIdx];
+        const totalHorizOnRow = rowHorizDirCount[r][2] + rowHorizDirCount[r][3];
+        let adjSameDir = 0;
+        if (r > 0) adjSameDir += rowHorizDirCount[r - 1][dIdx];
+        if (r + 1 < rows) adjSameDir += rowHorizDirCount[r + 1][dIdx];
+        w -= sameDirOnRow * 28.0 + totalHorizOnRow * 12.0 + adjSameDir * 14.0;
+      } else {
+        // Vertical arrow (UP=0, DOWN=1) on col `cand.hc`
+        const c = cand.hc;
+        const sameDirOnCol = colVertDirCount[c][dIdx];
+        const totalVertOnCol = colVertDirCount[c][0] + colVertDirCount[c][1];
+        let adjSameDir = 0;
+        if (c > 0) adjSameDir += colVertDirCount[c - 1][dIdx];
+        if (c + 1 < cols) adjSameDir += colVertDirCount[c + 1][dIdx];
+        w -= sameDirOnCol * 28.0 + totalVertOnCol * 12.0 + adjSameDir * 14.0;
+      }
+
+      // 5. GLOBAL 4-DIRECTION BALANCE & STEP-TO-STEP DIRECTION SWITCHING:
+      w += (avgGlobalDir - globalDirCount[dIdx]) * 26.0;
+      if (dIdx === prevChosenDirIdx) {
+        w -= 38.0;
+      } else if (prevChosenDirIdx >= 0 && (dIdx < 2) !== (prevChosenDirIdx < 2)) {
+        w += 18.0;
+      }
+
+      return w;
+    };
+
     const cleanCandidates = [];
     for (const cand of candidates) {
       remaining[cand.hIdx] = 0;
       remaining[cand.pIdx] = 0;
       const headIsolates = createsIsolatedNeighbor(cand.hr, cand.hc, rows, cols, remaining, -1);
-      // For neck, if it creates a single isolated neighbor, we can step into that neighbor as the 3rd cell!
       let neckIsolatedCount = 0;
       let forcedNext = null;
       for (const { dr, dc } of DIRS) {
@@ -2069,134 +2839,67 @@ function partitionCellsIntoArrows({
       remaining[cand.pIdx] = 1;
 
       if (!headIsolates && neckIsolatedCount <= 1) {
-        const degH = countNeighbors(cand.hr, cand.hc, rows, cols, remaining);
-        const weight =
-          1 +
-          (cand.passedPeeled > 0 ? 3.5 : 0) +
-          (degH === 1 ? 2.5 : 0) +
-          rng() * 2.0;
+        const weight = scoreCandidate(cand);
         cleanCandidates.push({ ...cand, forcedNext, weight });
       }
     }
 
-    const pool = cleanCandidates.length > 0 ? cleanCandidates : candidates;
-    // Weighted random selection from top candidates
-    pool.sort((a, b) => (b.weight || 0) - (a.weight || 0));
-    const topK = Math.min(pool.length, Math.max(4, Math.ceil(pool.length * 0.35)));
-    const chosen = pool[Math.floor(rng() * topK)];
+    let pool =
+      cleanCandidates.length > 0
+        ? cleanCandidates
+        : candidates.map(c => ({ ...c, weight: scoreCandidate(c) }));
 
-    // Start building snake from head -> neck -> tail
-    const reversedCells = [
-      { r: chosen.hr, c: chosen.hc, idx: chosen.hIdx },
-      { r: chosen.pr, c: chosen.pc, idx: chosen.pIdx },
-    ];
-    remaining[chosen.hIdx] = 0;
-    remaining[chosen.pIdx] = 0;
-    obstacles[chosen.hIdx] = 0;
-    obstacles[chosen.pIdx] = 0;
-    peeledGrid[chosen.hIdx] = 1;
-    peeledGrid[chosen.pIdx] = 1;
-    totalRemaining -= 2;
-
-    // Determine target length for this snake (allow longer tail if walking into shadowed pocket)
-    let targetLen =
-      minLen + Math.floor(rng() * (maxLen - minLen + 1));
-
-    // Walk backwards from neck to grow the winding snake body
-    let cur = { r: chosen.pr, c: chosen.pc, idx: chosen.pIdx };
-    let prevDir = { dr: -chosen.dr, dc: -chosen.dc };
-    let forcedStep = chosen.forcedNext || null;
-
-    while (reversedCells.length < targetLen && totalRemaining > 0) {
-      if (forcedStep && remaining[forcedStep.idx] === 1) {
-        const stepCell = forcedStep;
-        forcedStep = null;
-        reversedCells.push(stepCell);
-        remaining[stepCell.idx] = 0;
-        obstacles[stepCell.idx] = 0;
-        peeledGrid[stepCell.idx] = 1;
-        totalRemaining--;
-        prevDir = { dr: stepCell.r - cur.r, dc: stepCell.c - cur.c };
-        cur = stepCell;
-        continue;
+    // Strictly enforce deep interlocking: once 4 quadrant-distributed entry arrows are placed,
+    // prefer blocked candidates (`passedPeeled > 0`), unless a direction is underrepresented
+    // and needs a fresh border breach (`unblockedFrontierCount < 8`).
+    if (unblockedFrontierCount >= 4) {
+      const interlockedPool = pool.filter(
+        c =>
+          c.passedPeeled > 0 ||
+          (unblockedFrontierCount < 8 && globalDirCount[c.dirIdx] + 2 < avgGlobalDir)
+      );
+      if (interlockedPool.length > 0) {
+        pool = interlockedPool;
       }
-
-      // Gather valid next tail steps from `cur`
-      const stepOptions = [];
-      for (const { dr, dc } of DIRS) {
-        const nr = cur.r + dr;
-        const nc = cur.c + dc;
-        if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue;
-        const nIdx = nr * cols + nc;
-        if (remaining[nIdx] !== 1) continue;
-
-        // Tentatively remove nIdx and check how many isolated neighbors it creates
-        remaining[nIdx] = 0;
-        let isolatedNeighbors = [];
-        for (const d2 of DIRS) {
-          const nnr = nr + d2.dr;
-          const nnc = nc + d2.dc;
-          if (nnr >= 0 && nnr < rows && nnc >= 0 && nnc < cols) {
-            const nnIdx = nnr * cols + nnc;
-            if (remaining[nnIdx] === 1 && countNeighbors(nnr, nnc, rows, cols, remaining) === 0) {
-              isolatedNeighbors.push({ r: nnr, c: nnc, idx: nnIdx });
-            }
-          }
-        }
-        remaining[nIdx] = 1;
-
-        // If stepping into (nr, nc) leaves 0 isolated neighbors, or leaves 1 isolated neighbor and we still have length budget to absorb it
-        if (
-          isolatedNeighbors.length === 0 ||
-          (isolatedNeighbors.length === 1 && reversedCells.length + 1 < maxLen + 2)
-        ) {
-          const isTurn = dr !== prevDir.dr || dc !== prevDir.dc;
-          const deg = countNeighbors(nr, nc, rows, cols, remaining);
-          const isShadowed = shadowedByFixed[nIdx] === 1;
-          // Favor 90-degree turns and strongly pull tail into pockets shadowed by fixedObstacleGrid
-          const score =
-            (isShadowed ? 12.0 : 0) +
-            (isTurn ? 2.6 : 1.0) +
-            (deg <= 2 ? 2.0 : 0) +
-            (isolatedNeighbors.length === 0 ? 2.0 : 0) +
-            rng() * 1.5;
-          stepOptions.push({
-            r: nr,
-            c: nc,
-            idx: nIdx,
-            dr,
-            dc,
-            forcedAfter: isolatedNeighbors[0] || null,
-            score,
-          });
-        }
-      }
-
-      if (stepOptions.length === 0) break;
-      stepOptions.sort((a, b) => b.score - a.score);
-      const pick = stepOptions[0];
-
-      const nextCell = { r: pick.r, c: pick.c, idx: pick.idx };
-      if (shadowedByFixed[nextCell.idx] === 1 && targetLen < maxLen + 8) {
-        targetLen++;
-      }
-      reversedCells.push(nextCell);
-      remaining[nextCell.idx] = 0;
-      obstacles[nextCell.idx] = 0;
-      peeledGrid[nextCell.idx] = 1;
-      totalRemaining--;
-      prevDir = { dr: pick.dr, dc: pick.dc };
-      cur = nextCell;
-      forcedStep = pick.forcedAfter;
     }
 
-    // If any single isolated neighbor was left adjacent to tail or body, absorb it if adjacent to tail
+    pool.sort((a, b) => (b.weight || 0) - (a.weight || 0));
+    const topK = Math.min(pool.length, 3);
+    const chosen = pool[Math.floor(rng() * topK)];
+
+    // Slice along the Classic Maze corridor!
+    const reversedCells = sliceMazeCorridor({
+      chosen,
+      targetLen,
+      motif,
+      rows,
+      cols,
+      remaining,
+      mazeAdj,
+      shadowedByFixed,
+      rng,
+    });
+
+    const curArrowStep = arrows.length + 1;
+    const chosenDirIdx = chosen.dirIdx;
+
+    for (const cell of reversedCells) {
+      remaining[cell.idx] = 0;
+      obstacles[cell.idx] = 0;
+      peeledGrid[cell.idx] = 1;
+      peeledStepGrid[cell.idx] = curArrowStep;
+      peeledDirGrid[cell.idx] = chosenDirIdx;
+      totalRemaining--;
+    }
+
+    // Absorb any single degree-0 cell adjacent to the tail
+    let curTail = reversedCells[reversedCells.length - 1];
     let absorbed = true;
     while (absorbed && totalRemaining > 0) {
       absorbed = false;
       for (const { dr, dc } of DIRS) {
-        const nr = cur.r + dr;
-        const nc = cur.c + dc;
+        const nr = curTail.r + dr;
+        const nc = curTail.c + dc;
         if (nr >= 0 && nr < rows && nc >= 0 && nc < cols) {
           const nIdx = nr * cols + nc;
           if (remaining[nIdx] === 1 && countNeighbors(nr, nc, rows, cols, remaining) === 0) {
@@ -2205,8 +2908,10 @@ function partitionCellsIntoArrows({
             remaining[nIdx] = 0;
             obstacles[nIdx] = 0;
             peeledGrid[nIdx] = 1;
+            peeledStepGrid[nIdx] = curArrowStep;
+            peeledDirGrid[nIdx] = chosenDirIdx;
             totalRemaining--;
-            cur = tailCell;
+            curTail = tailCell;
             absorbed = true;
             break;
           }
@@ -2214,7 +2919,6 @@ function partitionCellsIntoArrows({
       }
     }
 
-    // Sweep for any accidental degree-0 single cell in `remaining` and attach it to an adjacent existing snake tail
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
         const idx = r * cols + c;
@@ -2227,7 +2931,21 @@ function partitionCellsIntoArrows({
       }
     }
 
-    // `reversedCells` is ordered [head, neck, ..., tail]. Reverse it so `cells` is [tail, ..., neck, head]
+    // Update Interlocking & Multi-Line Dispersion trackers
+    globalDirCount[chosenDirIdx]++;
+    if (chosenDirIdx >= 2) {
+      rowHorizDirCount[chosen.hr][chosenDirIdx]++;
+    } else {
+      colVertDirCount[chosen.hc][chosenDirIdx]++;
+    }
+    placedHeads.push({ r: chosen.hr, c: chosen.hc, dirIdx: chosenDirIdx });
+    if (chosen.passedPeeled === 0) {
+      unblockedFrontierCount++;
+    } else if (chosen.latestBlockerStep > 0 && chosen.latestBlockerStep < dependentsCount.length) {
+      dependentsCount[chosen.latestBlockerStep]++;
+    }
+    prevChosenDirIdx = chosenDirIdx;
+
     const cells = reversedCells.reverse().map(({ r, c }) => ({ r, c }));
     const color = ARROW_PALETTE[(nextId - 1 + Math.floor(rng() * 3)) % ARROW_PALETTE.length];
 
@@ -2241,12 +2959,10 @@ function partitionCellsIntoArrows({
     });
   }
 
-  // Try to attach any orphan single cells to the tail of an orthogonally adjacent arrow
   for (const orphan of orphanCells) {
     for (const arrow of arrows) {
       const tail = arrow.cells[0];
       if (Math.abs(tail.r - orphan.r) + Math.abs(tail.c - orphan.c) === 1) {
-        // Check that adding orphan to tail does not block arrow's own head ray
         const dr = arrow.dir.dr;
         const dc = arrow.dir.dc;
         const onOwnRay =
@@ -2260,17 +2976,72 @@ function partitionCellsIntoArrows({
     }
   }
 
-  // Assign well-distributed colors so adjacent arrows contrast nicely
+  // Maze Corridor Re-Stitching Pass (Only stitches fragments if the combined path
+  // forms a clean Straight, L-Bend, U-Bend, or Paperclip — NEVER stitches into an S-bend!)
+  const maxDesiredArrows = 86;
+  let stitched = true;
+  while (stitched) {
+    stitched = false;
+    for (let j = arrows.length - 1; j >= 1; j--) {
+      const frag = arrows[j];
+      if (!frag || frag.cells.length > 4) continue;
+      // Keep ~16-22 intentional short 2-3 cell arrows unless total arrow count exceeds 86
+      const shortCount = arrows.filter(a => a.cells.length <= 3).length;
+      if (shortCount <= 18 && arrows.length <= maxDesiredArrows) break;
+
+      const fragStart = frag.cells[0];
+      const fragEnd = frag.cells[frag.cells.length - 1];
+
+      for (let i = j - 1; i >= 0; i--) {
+        const host = arrows[i];
+        if (!host || host.cells.length + frag.cells.length > 30) continue;
+
+        const hostTail = host.cells[0];
+        const adjToEnd =
+          Math.abs(hostTail.r - fragEnd.r) + Math.abs(hostTail.c - fragEnd.c) === 1;
+        const adjToStart =
+          Math.abs(hostTail.r - fragStart.r) + Math.abs(hostTail.c - fragStart.c) === 1;
+
+        if (adjToEnd || adjToStart) {
+          // Ensure none of frag's cells lie on host's own forward exit ray
+          const hdr = host.dir.dr;
+          const hdc = host.dir.dc;
+          let blocksHostOwnRay = false;
+          for (const fc of frag.cells) {
+            if (
+              (hdr !== 0 && fc.c === host.head.c && (fc.r - host.head.r) * hdr > 0) ||
+              (hdc !== 0 && fc.r === host.head.r && (fc.c - host.head.c) * hdc > 0)
+            ) {
+              blocksHostOwnRay = true;
+              break;
+            }
+          }
+          if (blocksHostOwnRay) continue;
+
+          const candidateCells = adjToEnd
+            ? [...frag.cells, ...host.cells]
+            : [...frag.cells.slice().reverse(), ...host.cells];
+          const newShape = classifyArrowShape(candidateCells);
+          // Only stitch if the resulting shape is NOT a Serpent S-wave (unless total > maxDesiredArrows)
+          if (newShape !== 'SERPENT' || arrows.length > maxDesiredArrows) {
+            host.cells = candidateCells;
+            arrows.splice(j, 1);
+            stitched = true;
+            break;
+          }
+        }
+      }
+      if (stitched) break;
+    }
+  }
+
   for (let i = 0; i < arrows.length; i++) {
+    arrows[i].id = startId + i;
     arrows[i].color = ARROW_PALETTE[(i * 3 + (seed % 7)) % ARROW_PALETTE.length];
   }
 
   return arrows;
 }
-
-/**
- * 1. Generate a full level from its level definition
- */
 function generateFullLevel(levelDef, seedOverride = null) {
   const mask = levelDef.mask;
   const rows = mask.length;
@@ -2289,8 +3060,8 @@ function generateFullLevel(levelDef, seedOverride = null) {
       rows,
       cols,
       targetGrid,
-      minLen: levelDef.minSnakeLen || 3,
-      maxLen: levelDef.maxSnakeLen || 12,
+      minLen: levelDef.minSnakeLen || 2,
+      maxLen: levelDef.maxSnakeLen || 28,
       seed: baseSeed + attempt * 97,
       startId: 1,
     });
@@ -2308,34 +3079,24 @@ function generateFullLevel(levelDef, seedOverride = null) {
 
   throw new Error(`Failed to generate solvable level for level ${levelDef.id}`);
 }
-
-/**
- * 2. Shuffle only the currently remaining (unremoved) arrows on the board.
- */
 function shuffleRemainingArrows(currentArrows, rows, cols, seed, levelDef = {}) {
   const remainingArrows = currentArrows.filter(a => !a.removed);
   if (remainingArrows.length === 0) return [];
 
   const targetGrid = new Uint8Array(rows * cols);
-  let cellCount = 0;
   for (const arrow of remainingArrows) {
     for (const cell of arrow.cells) {
       targetGrid[cell.r * cols + cell.c] = 1;
-      cellCount++;
     }
   }
-
-  const avgLen = cellCount / remainingArrows.length;
-  const minLen = Math.max(2, Math.floor(avgLen - 1.5));
-  const maxLen = Math.max(minLen + 1, Math.ceil(avgLen + 1.5));
 
   for (let attempt = 0; attempt < 12; attempt++) {
     const newArrows = partitionCellsIntoArrows({
       rows,
       cols,
       targetGrid,
-      minLen,
-      maxLen,
+      minLen: levelDef.minSnakeLen || 2,
+      maxLen: levelDef.maxSnakeLen || 28,
       seed: seed + attempt * 131,
       startId: 1,
     });
@@ -2345,14 +3106,6 @@ function shuffleRemainingArrows(currentArrows, rows, cols, seed, levelDef = {}) 
   }
   return remainingArrows;
 }
-
-/**
- * 3. Rule 4 Special Feature:
- * When the player clicks Shuffle (producing `shuffledArrows` on the remaining cells)
- * and then immediately clicks Restart, keep `shuffledArrows` intact as the core layout
- * and generate the missing cleared arrows around them on `fullMask` so the entire board
- * is complete and 100% solvable!
- */
 function extendShuffledToFull(shuffledArrows, fullMask, rows, cols, seed, levelDef = {}) {
   const activeShuffled = shuffledArrows.filter(a => !a.removed).map(a => ({
     ...a,
@@ -2371,7 +3124,6 @@ function extendShuffledToFull(shuffledArrows, fullMask, rows, cols, seed, levelD
     }
   }
 
-  // Missing cells = cells in fullMask (or original full board) that are not in remGrid
   const missingGrid = new Uint8Array(rows * cols);
   let missingCount = 0;
   for (let r = 0; r < rows; r++) {
@@ -2394,8 +3146,8 @@ function extendShuffledToFull(shuffledArrows, fullMask, rows, cols, seed, levelD
       cols,
       targetGrid: missingGrid,
       fixedObstacleGrid: remGrid,
-      minLen: levelDef.minSnakeLen || 3,
-      maxLen: levelDef.maxSnakeLen || 12,
+      minLen: levelDef.minSnakeLen || 2,
+      maxLen: levelDef.maxSnakeLen || 28,
       seed: seed + attempt * 193,
       startId: maxExistingId + 1,
     });
@@ -2406,14 +3158,13 @@ function extendShuffledToFull(shuffledArrows, fullMask, rows, cols, seed, levelD
     }
   }
 
-  // Ultimate fallback: if an inner pocket had a mutual ray dependency, regenerate full board with seed
   return generateFullLevel(
     {
       id: levelDef.id || 0,
       mask: fullMask,
-      minSnakeLen: levelDef.minSnakeLen || 3,
-      maxSnakeLen: levelDef.maxSnakeLen || 12,
-      expectedSeconds: levelDef.expectedSeconds || 180,
+      minSnakeLen: levelDef.minSnakeLen || 2,
+      maxSnakeLen: levelDef.maxSnakeLen || 28,
+      expectedSeconds: levelDef.expectedSeconds || 240,
       seed,
     },
     seed
@@ -2430,10 +3181,9 @@ function extendShuffledToFull(shuffledArrows, fullMask, rows, cols, seed, levelD
 class FeedbackController {
   constructor() {
     this.ctx = null;
+    this.noiseBuffer = null;
     this.soundEnabled = true;
     this.vibrateEnabled = true;
-    this.comboCount = 0;
-    this.lastClearTime = 0;
   }
 
   initContext() {
@@ -2445,6 +3195,17 @@ class FeedbackController {
     }
     if (this.ctx && this.ctx.state === 'suspended') {
       this.ctx.resume().catch(() => {});
+    }
+    if (this.ctx && !this.noiseBuffer) {
+      // Pre-build a 0.25s white noise buffer for arrow fletching whoosh & target impact transients
+      const sr = this.ctx.sampleRate;
+      const len = Math.floor(sr * 0.25);
+      const buf = this.ctx.createBuffer(1, len, sr);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) {
+        data[i] = Math.random() * 2 - 1;
+      }
+      this.noiseBuffer = buf;
     }
   }
 
@@ -2463,41 +3224,170 @@ class FeedbackController {
   }
 
   /**
-   * Crisp, satisfying arrow launch / slither-out sound
+   * Realistic Archery Sound: Arrow Fletching Whoosh + Bullseye Target Impact Thwack ("嗖—笃！")
    */
   playArrowClear() {
     if (!this.soundEnabled) return;
     this.initContext();
     if (!this.ctx) return;
 
-    const now = performance.now();
-    if (now - this.lastClearTime < 2200) {
-      this.comboCount = Math.min(this.comboCount + 1, 10);
-    } else {
-      this.comboCount = 0;
+    const t = this.ctx.currentTime;
+
+    // 1. Phase 1 (0 ~ 50ms): Arrow Fletching Air Whoosh ("嗖")
+    if (this.noiseBuffer) {
+      const whooshSrc = this.ctx.createBufferSource();
+      whooshSrc.buffer = this.noiseBuffer;
+
+      const whooshFilter = this.ctx.createBiquadFilter();
+      whooshFilter.type = 'bandpass';
+      whooshFilter.Q.setValueAtTime(3.0, t);
+      whooshFilter.frequency.setValueAtTime(2400, t);
+      whooshFilter.frequency.exponentialRampToValueAtTime(650, t + 0.052);
+
+      const whooshGain = this.ctx.createGain();
+      whooshGain.gain.setValueAtTime(0.001, t);
+      whooshGain.gain.linearRampToValueAtTime(0.18, t + 0.012);
+      whooshGain.gain.exponentialRampToValueAtTime(0.001, t + 0.058);
+
+      whooshSrc.connect(whooshFilter);
+      whooshFilter.connect(whooshGain);
+      whooshGain.connect(this.ctx.destination);
+      whooshSrc.onended = () => {
+        try {
+          whooshSrc.disconnect();
+          whooshFilter.disconnect();
+          whooshGain.disconnect();
+        } catch (_) {}
+      };
+      whooshSrc.start(t);
+      whooshSrc.stop(t + 0.06);
     }
-    this.lastClearTime = now;
+
+    // 2. Phase 2 (36 ~ 165ms): Arrowhead Hitting Target Bullseye ("笃！")
+    const hitTime = t + 0.036;
+
+    // 2a. Target surface leather/straw impact transient click
+    if (this.noiseBuffer) {
+      const hitNoise = this.ctx.createBufferSource();
+      hitNoise.buffer = this.noiseBuffer;
+
+      const hitFilter = this.ctx.createBiquadFilter();
+      hitFilter.type = 'bandpass';
+      hitFilter.Q.setValueAtTime(1.8, hitTime);
+      hitFilter.frequency.setValueAtTime(980, hitTime);
+      hitFilter.frequency.exponentialRampToValueAtTime(360, hitTime + 0.032);
+
+      const hitNoiseGain = this.ctx.createGain();
+      hitNoiseGain.gain.setValueAtTime(0.001, hitTime);
+      hitNoiseGain.gain.linearRampToValueAtTime(0.32, hitTime + 0.003);
+      hitNoiseGain.gain.exponentialRampToValueAtTime(0.001, hitTime + 0.035);
+
+      hitNoise.connect(hitFilter);
+      hitFilter.connect(hitNoiseGain);
+      hitNoiseGain.connect(this.ctx.destination);
+      hitNoise.onended = () => {
+        try {
+          hitNoise.disconnect();
+          hitFilter.disconnect();
+          hitNoiseGain.disconnect();
+        } catch (_) {}
+      };
+      hitNoise.start(hitTime);
+      hitNoise.stop(hitTime + 0.038);
+    }
+
+    // 2b. Solid target body low-mid punch thump (265 Hz -> 58 Hz)
+    const punchOsc = this.ctx.createOscillator();
+    const punchGain = this.ctx.createGain();
+    punchOsc.type = 'triangle';
+    punchOsc.frequency.setValueAtTime(265, hitTime);
+    punchOsc.frequency.exponentialRampToValueAtTime(58, hitTime + 0.095);
+
+    punchGain.gain.setValueAtTime(0.001, hitTime);
+    punchGain.gain.linearRampToValueAtTime(0.36, hitTime + 0.005);
+    punchGain.gain.exponentialRampToValueAtTime(0.001, hitTime + 0.135);
+
+    punchOsc.connect(punchGain);
+    punchGain.connect(this.ctx.destination);
+    punchOsc.onended = () => {
+      try {
+        punchOsc.disconnect();
+        punchGain.disconnect();
+      } catch (_) {}
+    };
+    punchOsc.start(hitTime);
+    punchOsc.stop(hitTime + 0.14);
+
+    // 2c. Subtle wooden arrow-shaft vibration resonance (390 Hz -> 330 Hz)
+    const shaftOsc = this.ctx.createOscillator();
+    const shaftGain = this.ctx.createGain();
+    shaftOsc.type = 'sine';
+    shaftOsc.frequency.setValueAtTime(395, hitTime + 0.005);
+    shaftOsc.frequency.exponentialRampToValueAtTime(330, hitTime + 0.09);
+
+    shaftGain.gain.setValueAtTime(0.001, hitTime + 0.005);
+    shaftGain.gain.linearRampToValueAtTime(0.09, hitTime + 0.012);
+    shaftGain.gain.exponentialRampToValueAtTime(0.001, hitTime + 0.095);
+
+    shaftOsc.connect(shaftGain);
+    shaftGain.connect(this.ctx.destination);
+    shaftOsc.onended = () => {
+      try {
+        shaftOsc.disconnect();
+        shaftGain.disconnect();
+      } catch (_) {}
+    };
+    shaftOsc.start(hitTime + 0.005);
+    shaftOsc.stop(hitTime + 0.1);
+  }
+
+  /**
+   * 7-Combo Rainbow Arrow Spawn Chime
+   */
+  playRainbowSpawn() {
+    if (!this.soundEnabled) return;
+    this.initContext();
+    if (!this.ctx) return;
 
     const t = this.ctx.currentTime;
-    const osc = this.ctx.createOscillator();
-    const gain = this.ctx.createGain();
+    const notes = [523.25, 659.25, 783.99, 1046.5];
+    notes.forEach((freq, i) => {
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, t + i * 0.045);
+      gain.gain.setValueAtTime(0.001, t + i * 0.045);
+      gain.gain.linearRampToValueAtTime(0.15, t + i * 0.045 + 0.012);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + i * 0.045 + 0.22);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(t + i * 0.045);
+      osc.stop(t + i * 0.045 + 0.23);
+    });
+  }
 
-    // Pentatonic scale progression for combo satisfaction
-    const baseFreqs = [392.0, 440.0, 493.88, 587.33, 659.25, 783.99, 880.0, 987.77, 1174.66];
-    const startFreq = baseFreqs[this.comboCount % baseFreqs.length];
+  /**
+   * Rainbow Bonus Red Arrow Lock-on Sound
+   */
+  playBonusRedLock() {
+    if (!this.soundEnabled) return;
+    this.initContext();
+    if (!this.ctx) return;
 
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(startFreq, t);
-    osc.frequency.exponentialRampToValueAtTime(startFreq * 1.45, t + 0.14);
-
-    gain.gain.setValueAtTime(0.001, t);
-    gain.gain.linearRampToValueAtTime(0.18, t + 0.015);
-    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
-
-    osc.connect(gain);
-    gain.connect(this.ctx.destination);
-    osc.start(t);
-    osc.stop(t + 0.17);
+    const t = this.ctx.currentTime;
+    [783.99, 1046.5].forEach((freq, i) => {
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, t + i * 0.055);
+      gain.gain.setValueAtTime(0.001, t + i * 0.055);
+      gain.gain.linearRampToValueAtTime(0.16, t + i * 0.055 + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + i * 0.055 + 0.16);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(t + i * 0.055);
+      osc.stop(t + i * 0.055 + 0.17);
+    });
   }
 
   /**
@@ -2618,17 +3508,35 @@ const feedback = new FeedbackController();
 // === [src/renderer/canvasView.js] ===
 /**
  * High-DPI Canvas Renderer & Multi-Touch Zoom/Pan Controller for 《一箭又一箭》
- * Features:
- * - Deep slate night mode (#2b3244) & crisp day mode with equal-spaced grid dots
- * - True snake-slithering trajectory interpolation along all body bends
- * - Blocked arrow damped harmonic shake animation (keeps original color, never turns red)
- * - Hint glowing pulse animation
- * - Pinch-to-zoom, pan, and bottom zoom slider synchronization
+ * Mobile-GPU Optimized Edition:
+ * - Zero `shadowBlur` offscreen texture allocations (uses hardware-accelerated vector halo & depth strokes)
+ * - Cached `Path2D` for the 1,216 background grid dots (1 draw call instead of 1,216 `arc` calls/frame)
+ * - Pre-simplified corner vertices (`_cornerCells`) with zero per-frame array allocations for stationary arrows
+ * - On-demand smart render loop (0% GPU/CPU usage when board is idle while player is thinking)
  */
+
+function simplifyCellsToCorners(cells) {
+  if (!cells || cells.length <= 2) return cells;
+  const corners = [cells[0]];
+  for (let i = 1; i < cells.length - 1; i++) {
+    const prev = cells[i - 1];
+    const cur = cells[i];
+    const next = cells[i + 1];
+    const dr1 = cur.r - prev.r;
+    const dc1 = cur.c - prev.c;
+    const dr2 = next.r - cur.r;
+    const dc2 = next.c - cur.c;
+    if (dr1 !== dr2 || dc1 !== dc2) {
+      corners.push(cur);
+    }
+  }
+  corners.push(cells[cells.length - 1]);
+  return corners;
+}
 class BoardCanvasView {
   constructor(canvas, { onArrowTap, onZoomChange }) {
     this.canvas = canvas;
-    this.ctx = canvas.getContext('2d');
+    this.ctx = canvas.getContext('2d', { alpha: false });
     this.onArrowTap = onArrowTap;
     this.onZoomChange = onZoomChange;
 
@@ -2642,11 +3550,8 @@ class BoardCanvasView {
     this.theme = 'dark'; // 'dark' | 'light'
 
     // Active animations
-    // slitheringArrows: Map<arrowId, { arrow, progressSteps, speedStepsPerSec }>
     this.slitheringArrows = new Map();
-    // shakingArrows: Map<arrowId, { startTime, duration, dir, freeSteps, blockerCell }>
     this.shakingArrows = new Map();
-    // shuffleTransition: { startTime, duration }
     this.shuffleTransition = null;
 
     // Viewport & Zoom/Pan transform
@@ -2658,6 +3563,7 @@ class BoardCanvasView {
     this.baseCellSize = 24;
     this.boardOriginX = 0;
     this.boardOriginY = 0;
+    this.dotsPath = null;
 
     // Pointer / Touch tracking for Pinch-to-Zoom & Pan vs Tap
     this.activePointers = new Map();
@@ -2671,6 +3577,7 @@ class BoardCanvasView {
     this.initialPinchCenter = { x: 0, y: 0 };
     this.totalPointerMove = 0;
 
+    this.needsRender = true;
     this.rafId = null;
     this.lastFrameTime = performance.now();
 
@@ -2679,26 +3586,36 @@ class BoardCanvasView {
     this.startLoop();
   }
 
+  prepareArrowsCache(arrows) {
+    for (const arrow of arrows) {
+      arrow._cornerCells = simplifyCellsToCorners(arrow.cells);
+    }
+  }
+
   setBoard({ rows, cols, mask, arrows }) {
     this.rows = rows;
     this.cols = cols;
     this.mask = mask;
     this.arrows = arrows;
+    this.prepareArrowsCache(arrows);
     this.hintArrowId = null;
     this.slitheringArrows.clear();
     this.shakingArrows.clear();
     this.resetCamera();
     this.triggerShuffleWave();
+    this.needsRender = true;
   }
 
   updateArrows(arrows, animateWave = false) {
     this.arrows = arrows;
+    this.prepareArrowsCache(arrows);
     this.hintArrowId = null;
     this.slitheringArrows.clear();
     this.shakingArrows.clear();
     if (animateWave) {
       this.triggerShuffleWave();
     }
+    this.needsRender = true;
   }
 
   triggerShuffleWave() {
@@ -2706,18 +3623,22 @@ class BoardCanvasView {
       startTime: performance.now(),
       duration: 360,
     };
+    this.needsRender = true;
   }
 
   setTheme(theme) {
     this.theme = theme;
+    this.needsRender = true;
   }
 
   setGuideLines(enabled) {
     this.showGuideLines = enabled;
+    this.needsRender = true;
   }
 
   setHintArrow(arrowId) {
     this.hintArrowId = arrowId;
+    this.needsRender = true;
   }
 
   resetCamera() {
@@ -2725,6 +3646,7 @@ class BoardCanvasView {
     this.panX = 0;
     this.panY = 0;
     this.computeLayout();
+    this.needsRender = true;
     if (this.onZoomChange) this.onZoomChange(this.zoom);
   }
 
@@ -2734,7 +3656,6 @@ class BoardCanvasView {
     const cx = anchorScreenX !== null ? anchorScreenX : rect.width / 2;
     const cy = anchorScreenY !== null ? anchorScreenY : rect.height / 2;
 
-    // Keep the point under (cx, cy) stationary during zoom
     const worldX = (cx - rect.width / 2 - this.panX) / this.zoom;
     const worldY = (cy - rect.height / 2 - this.panY) / this.zoom;
 
@@ -2742,6 +3663,7 @@ class BoardCanvasView {
     this.panX = cx - rect.width / 2 - worldX * this.zoom;
     this.panY = cy - rect.height / 2 - worldY * this.zoom;
     this.clampPan();
+    this.needsRender = true;
 
     if (this.onZoomChange) this.onZoomChange(this.zoom);
   }
@@ -2755,13 +3677,15 @@ class BoardCanvasView {
 
   resize() {
     const rect = this.canvas.parentElement.getBoundingClientRect();
-    const dpr = Math.min(window.devicePixelRatio || 1, 3);
+    // Cap DPR at 2.0 on mobile to prevent 3x/3.5x QHD fill-rate bottleneck on mobile browsers
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
     this.canvas.width = Math.max(1, Math.floor(rect.width * dpr));
     this.canvas.height = Math.max(1, Math.floor(rect.height * dpr));
     this.canvas.style.width = `${rect.width}px`;
     this.canvas.style.height = `${rect.height}px`;
     this.dpr = dpr;
     this.computeLayout();
+    this.needsRender = true;
   }
 
   computeLayout() {
@@ -2777,6 +3701,23 @@ class BoardCanvasView {
     const boardH = this.rows * this.baseCellSize;
     this.boardOriginX = -boardW / 2;
     this.boardOriginY = -boardH / 2;
+
+    // Pre-build a single cached Path2D for all grid dots so render() does 1 fill() instead of 1,216 arc() calls!
+    const dotRadius = Math.max(1.3, this.baseCellSize * 0.068);
+    if (typeof Path2D !== 'undefined') {
+      const p = new Path2D();
+      for (let r = 0; r < this.rows; r++) {
+        const y = this.boardOriginY + (r + 0.5) * this.baseCellSize;
+        for (let c = 0; c < this.cols; c++) {
+          const x = this.boardOriginX + (c + 0.5) * this.baseCellSize;
+          p.moveTo(x + dotRadius, y);
+          p.arc(x, y, dotRadius, 0, Math.PI * 2);
+        }
+      }
+      this.dotsPath = p;
+    } else {
+      this.dotsPath = null;
+    }
   }
 
   /**
@@ -2795,6 +3736,7 @@ class BoardCanvasView {
       speedStepsPerSec: speed,
       onComplete,
     });
+    this.needsRender = true;
   }
 
   /**
@@ -2808,11 +3750,9 @@ class BoardCanvasView {
       freeSteps: checkResult.distanceToBlocker || 0,
       blockerCell: checkResult.blockerCell || null,
     });
+    this.needsRender = true;
   }
 
-  /**
-   * Convert screen (clientX, clientY) to board grid coordinates { r, c, distFromCenter }
-   */
   screenToGrid(clientX, clientY) {
     const rect = this.canvas.getBoundingClientRect();
     const sx = clientX - rect.left;
@@ -2835,23 +3775,18 @@ class BoardCanvasView {
     };
   }
 
-  /**
-   * Find the arrow closest to the tapped grid position
-   */
   findArrowAtScreenPos(clientX, clientY) {
     const { rFloat, cFloat } = this.screenToGrid(clientX, clientY);
 
     let bestArrow = null;
-    let bestDist = 0.72; // Generous touch radius in grid units
+    let bestDist = 0.72;
 
     for (const arrow of this.arrows) {
       if (arrow.removed || this.slitheringArrows.has(arrow.id)) continue;
 
-      // Check distance to every segment of the arrow polyline
       const cells = arrow.cells;
       for (let i = 0; i < cells.length; i++) {
         const dPoint = Math.hypot(rFloat - cells[i].r, cFloat - cells[i].c);
-        // Slightly prioritize arrowhead taps when fingers are close
         const headBonus = i === cells.length - 1 ? 0.92 : 1.0;
         if (dPoint * headBonus < bestDist) {
           bestDist = dPoint * headBonus;
@@ -2927,6 +3862,7 @@ class BoardCanvasView {
         this.panX = this.initialPanX + (e.clientX - this.dragStartX);
         this.panY = this.initialPanY + (e.clientY - this.dragStartY);
         this.clampPan();
+        this.needsRender = true;
       } else if (this.activePointers.size === 2) {
         const pts = Array.from(this.activePointers.values());
         const dist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
@@ -2954,7 +3890,6 @@ class BoardCanvasView {
         }
         this.isDragging = false;
       } else if (this.activePointers.size === 1) {
-        // Transition smoothly from 2-finger pinch back to 1-finger pan
         const remaining = Array.from(this.activePointers.values())[0];
         this.dragStartX = remaining.x;
         this.dragStartY = remaining.y;
@@ -2966,7 +3901,6 @@ class BoardCanvasView {
     this.canvas.addEventListener('pointerup', handlePointerUp);
     this.canvas.addEventListener('pointercancel', handlePointerUp);
 
-    // Desktop mouse wheel zoom support
     this.canvas.addEventListener(
       'wheel',
       e => {
@@ -2979,31 +3913,56 @@ class BoardCanvasView {
     );
   }
 
+  hasAnimatedArrowState() {
+    if (
+      this.slitheringArrows.size > 0 ||
+      this.shakingArrows.size > 0 ||
+      this.shuffleTransition !== null ||
+      this.hintArrowId !== null
+    ) {
+      return true;
+    }
+    for (let i = 0; i < this.arrows.length; i++) {
+      const a = this.arrows[i];
+      if (!a.removed && (a.isRainbow || a.isBonusRed)) return true;
+    }
+    return false;
+  }
+
   startLoop() {
     const tick = now => {
       const dt = Math.min(0.05, (now - this.lastFrameTime) / 1000);
       this.lastFrameTime = now;
-      this.updateAnimations(dt, now);
-      this.render(now);
+
+      const isAnimating = this.hasAnimatedArrowState();
+      if (isAnimating) {
+        this.updateAnimations(dt, now);
+      }
+
+      if (this.needsRender || isAnimating) {
+        this.render(now);
+        this.needsRender = this.hasAnimatedArrowState();
+      }
+
       this.rafId = requestAnimationFrame(tick);
     };
     this.rafId = requestAnimationFrame(tick);
   }
 
   updateAnimations(dt, now) {
-    // Update slithering arrows
     for (const [id, state] of this.slitheringArrows.entries()) {
       state.progressSteps += state.speedStepsPerSec * dt;
       if (state.progressSteps >= state.maxSteps) {
         this.slitheringArrows.delete(id);
+        this.needsRender = true;
         if (state.onComplete) state.onComplete(state.arrow);
       }
     }
 
-    // Expire finished shake animations
     for (const [id, shake] of this.shakingArrows.entries()) {
       if (now - shake.startTime >= shake.duration) {
         this.shakingArrows.delete(id);
+        this.needsRender = true;
       }
     }
 
@@ -3012,6 +3971,7 @@ class BoardCanvasView {
       now - this.shuffleTransition.startTime >= this.shuffleTransition.duration
     ) {
       this.shuffleTransition = null;
+      this.needsRender = true;
     }
   }
 
@@ -3020,18 +3980,18 @@ class BoardCanvasView {
    * as it slithers forward by `progressSteps` along its own body and exit ray.
    */
   getSlitheredGridPoints(arrow, progressSteps = 0) {
-    const baseCells = arrow.cells;
-    const L = baseCells.length;
     if (progressSteps <= 0) {
       return {
-        points: baseCells.map(c => ({ r: c.r, c: c.c })),
+        points: arrow._cornerCells || arrow.cells,
         dir: arrow.dir,
       };
     }
 
-    // Build extended trajectory: tail -> ... -> head -> ray steps
+    const baseCells = arrow.cells;
+    const L = baseCells.length;
+
     const totalNeeded = Math.ceil(progressSteps) + L + 2;
-    const path = baseCells.map(c => ({ r: c.r, c: c.c }));
+    const path = baseCells.slice();
     const head = baseCells[L - 1];
     const { dr, dc } = arrow.dir;
     for (let k = 1; k <= totalNeeded; k++) {
@@ -3042,32 +4002,29 @@ class BoardCanvasView {
     const frac = progressSteps - iTail;
     const iHead = iTail + L - 1;
 
-    const points = [];
-    // Interpolated tail position
+    const rawPoints = [];
     const pTail0 = path[iTail];
     const pTail1 = path[iTail + 1];
-    points.push({
+    rawPoints.push({
       r: pTail0.r + (pTail1.r - pTail0.r) * frac,
       c: pTail0.c + (pTail1.c - pTail0.c) * frac,
     });
 
-    // Intermediate corners along the snake body
     for (let idx = iTail + 1; idx <= iHead; idx++) {
-      points.push(path[idx]);
+      rawPoints.push(path[idx]);
     }
 
-    // Interpolated head position
     if (frac > 0.0001) {
       const pHead0 = path[iHead];
       const pHead1 = path[iHead + 1];
-      points.push({
+      rawPoints.push({
         r: pHead0.r + (pHead1.r - pHead0.r) * frac,
         c: pHead0.c + (pHead1.c - pHead0.c) * frac,
       });
     }
 
     return {
-      points,
+      points: simplifyCellsToCorners(rawPoints),
       dir: arrow.dir,
     };
   }
@@ -3099,42 +4056,46 @@ class BoardCanvasView {
 
     const cs = this.baseCellSize;
 
-    // 3. Draw equal-spaced subtle dots across the board grid (Screenshot 1 & 2 style)
-    const dotRadius = Math.max(1.3, cs * 0.068);
+    // 3. Draw equal-spaced subtle dots across the board grid using cached Path2D (1 native call!)
     ctx.fillStyle = isDark ? 'rgba(138, 153, 189, 0.34)' : 'rgba(110, 126, 160, 0.36)';
-    ctx.beginPath();
-    for (let r = 0; r < this.rows; r++) {
-      for (let c = 0; c < this.cols; c++) {
-        // Draw dots across the entire puzzle grid bounding area so cleared spaces & margins show the dot matrix
-        const { x, y } = this.gridToWorld(r, c);
-        ctx.moveTo(x + dotRadius, y);
-        ctx.arc(x, y, dotRadius, 0, Math.PI * 2);
+    if (this.dotsPath) {
+      ctx.fill(this.dotsPath);
+    } else {
+      const dotRadius = Math.max(1.3, cs * 0.068);
+      ctx.beginPath();
+      for (let r = 0; r < this.rows; r++) {
+        for (let c = 0; c < this.cols; c++) {
+          const { x, y } = this.gridToWorld(r, c);
+          ctx.moveTo(x + dotRadius, y);
+          ctx.arc(x, y, dotRadius, 0, Math.PI * 2);
+        }
       }
+      ctx.fill();
     }
-    ctx.fill();
 
-    // 4. Optional Guide Lines (辅助线 button at bottom right of Screenshot 1 & 2)
+    // 4. Optional Guide Lines
     if (this.showGuideLines) {
       ctx.save();
       ctx.strokeStyle = isDark ? 'rgba(255, 255, 255, 0.14)' : 'rgba(43, 50, 68, 0.14)';
       ctx.lineWidth = Math.max(1, cs * 0.045);
       ctx.setLineDash([cs * 0.16, cs * 0.16]);
+      ctx.beginPath();
       for (const arrow of this.arrows) {
         if (arrow.removed || this.slitheringArrows.has(arrow.id)) continue;
         const headW = this.gridToWorld(arrow.head.r, arrow.head.c);
         const endR = arrow.head.r + arrow.dir.dr * Math.max(this.rows, this.cols);
         const endC = arrow.head.c + arrow.dir.dc * Math.max(this.rows, this.cols);
         const endW = this.gridToWorld(endR, endC);
-        ctx.beginPath();
         ctx.moveTo(headW.x, headW.y);
         ctx.lineTo(endW.x, endW.y);
-        ctx.stroke();
       }
+      ctx.stroke();
       ctx.restore();
     }
 
     // 5. Draw all active & slithering arrows
-    for (const arrow of this.arrows) {
+    for (let i = 0; i < this.arrows.length; i++) {
+      const arrow = this.arrows[i];
       if (arrow.removed && !this.slitheringArrows.has(arrow.id)) continue;
       this.drawSingleArrow(ctx, arrow, cs, now);
     }
@@ -3149,7 +4110,6 @@ class BoardCanvasView {
 
     let progressSteps = slitherState ? slitherState.progressSteps : 0;
 
-    // Shake displacement (Rule 2: never turns red, vibrates & shakes visually in original color!)
     let shakeOffsetX = 0;
     let shakeOffsetY = 0;
     if (shakeState) {
@@ -3157,7 +4117,6 @@ class BoardCanvasView {
       const progress = Math.min(1, (now - shakeState.startTime) / shakeState.duration);
       const damping = Math.pow(1 - progress, 1.8);
 
-      // Lunge slightly toward the obstacle if there is free space, plus rapid orthogonal + axial jitter
       const lungeBounce = Math.sin(progress * Math.PI) * Math.min(0.28, shakeState.freeSteps * 0.18);
       progressSteps += lungeBounce;
 
@@ -3167,7 +4126,6 @@ class BoardCanvasView {
       shakeOffsetY = shakeState.dir.dr * wave + shakeState.dir.dc * crossWave;
     }
 
-    // Shuffle wave scale-in animation
     let scaleAlpha = 1.0;
     if (this.shuffleTransition) {
       const t = Math.min(
@@ -3180,65 +4138,107 @@ class BoardCanvasView {
     const { points, dir } = this.getSlitheredGridPoints(arrow, progressSteps);
     if (points.length < 2) return;
 
-    const worldPts = points.map(p => {
-      const w = this.gridToWorld(p.r, p.c);
-      return { x: w.x + shakeOffsetX, y: w.y + shakeOffsetY };
-    });
+    const worldPts = new Array(points.length);
+    for (let i = 0; i < points.length; i++) {
+      const p = points[i];
+      worldPts[i] = {
+        x: this.boardOriginX + (p.c + 0.5) * cs + shakeOffsetX,
+        y: this.boardOriginY + (p.r + 0.5) * cs + shakeOffsetY,
+      };
+    }
 
-    // Shorten the very last segment slightly so the line tucks cleanly into the arrowhead base
-    const headPt = { ...worldPts[worldPts.length - 1] };
+    const lastIdx = worldPts.length - 1;
+    const headPtX = worldPts[lastIdx].x;
+    const headPtY = worldPts[lastIdx].y;
     const lineEndOffset = cs * 0.06;
-    worldPts[worldPts.length - 1] = {
-      x: headPt.x - dir.dc * lineEndOffset,
-      y: headPt.y - dir.dr * lineEndOffset,
+    worldPts[lastIdx] = {
+      x: headPtX - dir.dc * lineEndOffset,
+      y: headPtY - dir.dr * lineEndOffset,
     };
 
     ctx.save();
-    ctx.globalAlpha = scaleAlpha;
+    if (scaleAlpha < 0.999) {
+      ctx.globalAlpha = scaleAlpha;
+    }
 
     const strokeWidth = Math.max(1.5, cs * 0.23);
     const cornerRadius = cs * 0.14;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
 
-    // Hint glow aura
+    // Hardware-accelerated vector halo for Hint (no slow Gaussian shadowBlur!)
     if (isHinted) {
       const pulse = 0.5 + 0.5 * Math.sin(now * 0.009);
+      ctx.strokeStyle = `rgba(255, 255, 255, ${0.32 + pulse * 0.28})`;
+      ctx.lineWidth = strokeWidth * (1.85 + pulse * 0.45);
+      this.traceRoundedPolyline(ctx, worldPts, cornerRadius);
+      ctx.stroke();
+    }
+
+    let activePaint = arrow.color;
+    if (arrow.isBonusRed) {
+      activePaint = '#ff2e4c';
+      const redPulse = 0.5 + 0.5 * Math.sin(now * 0.022);
+      ctx.strokeStyle = `rgba(255, 46, 76, ${0.34 + redPulse * 0.32})`;
+      ctx.lineWidth = strokeWidth * (1.9 + redPulse * 0.45);
+      this.traceRoundedPolyline(ctx, worldPts, cornerRadius);
+      ctx.stroke();
+    } else if (arrow.isRainbow) {
+      let minX = Infinity;
+      let minY = Infinity;
+      let maxX = -Infinity;
+      let maxY = -Infinity;
+      for (let i = 0; i < worldPts.length; i++) {
+        const p = worldPts[i];
+        if (p.x < minX) minX = p.x;
+        if (p.y < minY) minY = p.y;
+        if (p.x > maxX) maxX = p.x;
+        if (p.y > maxY) maxY = p.y;
+      }
+      const span = Math.max(cs * 2.5, Math.hypot(maxX - minX, maxY - minY));
+      const angle = (now * 0.0018) % (Math.PI * 2);
+      const cx = (minX + maxX) / 2;
+      const cy = (minY + maxY) / 2;
+      const gx0 = cx - Math.cos(angle) * span * 0.65;
+      const gy0 = cy - Math.sin(angle) * span * 0.65;
+      const gx1 = cx + Math.cos(angle) * span * 0.65;
+      const gy1 = cy + Math.sin(angle) * span * 0.65;
+
+      const grad = ctx.createLinearGradient(gx0, gy0, gx1, gy1);
+      const hueShift = (now * 0.14) % 360;
+      const stops = [0, 0.17, 0.33, 0.5, 0.67, 0.83, 1.0];
+      for (let s = 0; s < stops.length; s++) {
+        const h = (hueShift + s * 52) % 360;
+        grad.addColorStop(stops[s], `hsl(${h}, 95%, 64%)`);
+      }
+      activePaint = grad;
+
+      // Vector rainbow outer glow (zero shadowBlur!)
       ctx.save();
-      ctx.shadowColor = '#ffffff';
-      ctx.shadowBlur = cs * (0.55 + pulse * 0.45);
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = strokeWidth * (1.45 + pulse * 0.35);
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
+      ctx.globalAlpha = scaleAlpha * 0.32;
+      ctx.strokeStyle = grad;
+      ctx.lineWidth = strokeWidth * 1.75;
       this.traceRoundedPolyline(ctx, worldPts, cornerRadius);
       ctx.stroke();
       ctx.restore();
     }
 
-    // Subtle drop shadow for crisp depth on dark slate background
-    ctx.save();
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.28)';
-    ctx.shadowBlur = cs * 0.12;
-    ctx.shadowOffsetY = cs * 0.05;
-
-    // Main arrow body stroke (always keeps arrow.color, never turns red on error!)
-    ctx.strokeStyle = arrow.color;
+    // Main arrow body stroke
+    ctx.strokeStyle = activePaint;
     ctx.lineWidth = strokeWidth;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
     this.traceRoundedPolyline(ctx, worldPts, cornerRadius);
     ctx.stroke();
 
-    // Draw crisp triangular arrowhead at `headPt` pointing in `dir`
+    // Draw crisp triangular arrowhead at (headPtX, headPtY) pointing in `dir`
     const tipLength = cs * 0.32;
     const backLength = cs * 0.16;
     const halfWing = cs * 0.24;
 
-    const tipX = headPt.x + dir.dc * tipLength;
-    const tipY = headPt.y + dir.dr * tipLength;
-    const baseCenterX = headPt.x - dir.dc * backLength;
-    const baseCenterY = headPt.y - dir.dr * backLength;
+    const tipX = headPtX + dir.dc * tipLength;
+    const tipY = headPtY + dir.dr * tipLength;
+    const baseCenterX = headPtX - dir.dc * backLength;
+    const baseCenterY = headPtY - dir.dr * backLength;
 
-    // Perpendicular vector (-dir.dr, dir.dc)
     const perpX = -dir.dr;
     const perpY = dir.dc;
 
@@ -3247,7 +4247,7 @@ class BoardCanvasView {
     const rightX = baseCenterX - perpX * halfWing;
     const rightY = baseCenterY - perpY * halfWing;
 
-    ctx.fillStyle = arrow.color;
+    ctx.fillStyle = activePaint;
     ctx.beginPath();
     ctx.moveTo(tipX, tipY);
     ctx.lineTo(leftX, leftY);
@@ -3255,17 +4255,14 @@ class BoardCanvasView {
     ctx.closePath();
     ctx.fill();
     ctx.lineWidth = Math.max(1.2, cs * 0.06);
-    ctx.strokeStyle = arrow.color;
+    ctx.strokeStyle = activePaint;
     ctx.stroke();
-    ctx.restore();
 
     // If hinted, draw a subtle white inner highlight core
     if (isHinted) {
       const pulse = 0.5 + 0.5 * Math.sin(now * 0.009);
       ctx.strokeStyle = `rgba(255, 255, 255, ${0.45 + pulse * 0.45})`;
       ctx.lineWidth = strokeWidth * 0.42;
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
       this.traceRoundedPolyline(ctx, worldPts, cornerRadius);
       ctx.stroke();
     }
@@ -3273,9 +4270,6 @@ class BoardCanvasView {
     ctx.restore();
   }
 
-  /**
-   * Trace a polyline with smooth rounded 90-degree corners matching Screenshot 2
-   */
   traceRoundedPolyline(ctx, pts, radius) {
     ctx.beginPath();
     ctx.moveTo(pts[0].x, pts[0].y);
@@ -3307,7 +4301,14 @@ class BoardCanvasView {
 
 
 
-const STORAGE_KEY = 'arrow_by_arrow_custom_save_v1';
+const STORAGE_KEY = 'arrow_by_arrow_alphabet26_classic_maze_v6';
+const LEGACY_STORAGE_KEYS = [
+  'arrow_by_arrow_custom_save_v1',
+  'arrow_by_arrow_custom_save_v2',
+  'arrow_by_arrow_custom_save_v3',
+  'arrow_by_arrow_custom_save_v4',
+  'arrow_by_arrow_custom_save_v5',
+];
 
 function cloneArrows(arrows) {
   return arrows.map(a => ({
@@ -3316,6 +4317,8 @@ function cloneArrows(arrows) {
     head: { r: a.head.r, c: a.head.c },
     dir: { dr: a.dir.dr, dc: a.dir.dc },
     removed: Boolean(a.removed),
+    isRainbow: Boolean(a.isRainbow),
+    isBonusRed: false,
   }));
 }
 function formatTime(seconds) {
@@ -3385,6 +4388,8 @@ class ArrowGameApp {
     // so that clicking Restart rebuilds the full board based on the shuffled layout!
     this.restartBaseArrows = [];
     this.shuffleCount = 0;
+    this.comboCount = 0;
+    this.bonusTimeouts = [];
 
     // 3-Star tracking for current round
     this.usedShuffle = false;
@@ -3405,11 +4410,19 @@ class ArrowGameApp {
 
   loadSaveData() {
     try {
+      // Purge all legacy save data & records from previous versions
+      for (const oldKey of LEGACY_STORAGE_KEYS) {
+        localStorage.removeItem(oldKey);
+      }
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
+        const safeIdx = Math.max(
+          0,
+          Math.min(parsed.lastLevelIdx || 0, LEVEL_DEFINITIONS.length - 1)
+        );
         return {
-          lastLevelIdx: parsed.lastLevelIdx || 0,
+          lastLevelIdx: safeIdx,
           theme: parsed.theme || 'dark',
           sound: parsed.sound !== false,
           vibrate: parsed.vibrate !== false,
@@ -3435,7 +4448,8 @@ class ArrowGameApp {
 
   getTotalStars() {
     let sum = 0;
-    for (const rec of Object.values(this.saveData.levelRecords)) {
+    for (const lvl of LEVEL_DEFINITIONS) {
+      const rec = this.saveData.levelRecords[lvl.id];
       if (rec && typeof rec.stars === 'number') {
         sum += rec.stars;
       }
@@ -3464,6 +4478,7 @@ class ArrowGameApp {
     this.elLevelTitle = document.getElementById('levelTitleText');
     this.elTimerText = document.getElementById('timerText');
     this.elExpectedText = document.getElementById('expectedTimeText');
+    this.elComboBadge = document.getElementById('comboBadge');
     this.elRemainBadge = document.getElementById('remainBadge');
     this.elLiveStarShuffle = document.getElementById('liveStarShuffle');
     this.elLiveStarHint = document.getElementById('liveStarHint');
@@ -3576,6 +4591,8 @@ class ArrowGameApp {
     this.usedHint = false;
     this.isCompleted = false;
     this.isPaused = false;
+    this.comboCount = 0;
+    this.clearBonusTimeouts();
 
     if (freshGenerate) {
       const generated = generateFullLevel(this.levelDef);
@@ -3599,18 +4616,99 @@ class ArrowGameApp {
     this.updateHUD();
   }
 
+  clearBonusTimeouts() {
+    if (this.bonusTimeouts && this.bonusTimeouts.length > 0) {
+      for (const tid of this.bonusTimeouts) clearTimeout(tid);
+      this.bonusTimeouts = [];
+    }
+  }
+
+  /**
+   * 7-Combo Reward: Randomly turn one unremoved normal arrow into a Rainbow Arrow (彩虹箭头)
+   */
+  spawnRainbowArrow() {
+    const candidates = this.arrows.filter(
+      a =>
+        !a.removed &&
+        !a.isRainbow &&
+        !a.isBonusRed &&
+        !this.boardView.slitheringArrows.has(a.id)
+    );
+    if (candidates.length === 0) return;
+
+    const chosen = candidates[Math.floor(Math.random() * candidates.length)];
+    chosen.isRainbow = true;
+    this.boardView.needsRender = true;
+    feedback.playRainbowSpawn();
+    this.showToast(`🌈 ${this.comboCount}连击达成！已生成一条彩虹箭头`, 2200);
+  }
+
+  /**
+   * When a Rainbow Arrow is cleared: randomly select one currently removable arrow,
+   * turn it RED first (`isBonusRed = true` for 420ms), and then automatically clear it!
+   */
+  triggerRainbowBonusClear() {
+    const removableNow = getRemovableArrows(this.arrows, this.rows, this.cols).filter(
+      a => !a.removed && !a.isBonusRed && !this.boardView.slitheringArrows.has(a.id)
+    );
+    if (removableNow.length === 0) return;
+
+    const bonusArrow = removableNow[Math.floor(Math.random() * removableNow.length)];
+    bonusArrow.isBonusRed = true;
+    this.boardView.needsRender = true;
+    feedback.playBonusRedLock();
+    this.showToast('🎯 彩虹箭触发！附带箭头已变红锁定，即将自动清除', 2000);
+
+    const tid = setTimeout(() => {
+      if (this.isCompleted || bonusArrow.removed) return;
+      const wasAlsoRainbow = Boolean(bonusArrow.isRainbow);
+      feedback.playArrowClear();
+      bonusArrow.removed = true;
+      this.updateHUD();
+
+      this.boardView.animateArrowClear(bonusArrow, () => {
+        this.checkLevelComplete();
+      });
+
+      if (wasAlsoRainbow) {
+        this.triggerRainbowBonusClear();
+      }
+
+      const remaining = this.arrows.filter(a => !a.removed).length;
+      if (remaining === 0) {
+        setTimeout(() => this.checkLevelComplete(), 280);
+      }
+    }, 420);
+
+    this.bonusTimeouts.push(tid);
+  }
+
   /**
    * Handle player tapping an arrow on the canvas
    */
   handleArrowTap(arrow) {
-    if (this.isCompleted || arrow.removed) return;
+    if (this.isCompleted || arrow.removed || arrow.isBonusRed) return;
     if (this.boardView.slitheringArrows.has(arrow.id)) return;
 
     const check = checkArrowExit(arrow, this.arrows, this.rows, this.cols);
     if (check.canExit) {
-      // Clear path! Launch snake slithering animation out of the board
+      const wasRainbow = Boolean(arrow.isRainbow);
+
+      // Clear path! Play target-hit sound & launch snake slithering animation out of the board
       feedback.playArrowClear();
       arrow.removed = true;
+      this.comboCount++;
+
+      // Every 7*combo, turn a random remaining arrow into a Rainbow Arrow!
+      if (this.comboCount > 0 && this.comboCount % 7 === 0) {
+        this.spawnRainbowArrow();
+      }
+
+      // If the cleared arrow itself is a Rainbow Arrow, lock onto a currently removable arrow (turns red -> clears)!
+      if (wasRainbow) {
+        this.triggerRainbowBonusClear();
+      }
+
       this.updateHUD();
 
       this.boardView.animateArrowClear(arrow, () => {
@@ -3622,7 +4720,9 @@ class ArrowGameApp {
         setTimeout(() => this.checkLevelComplete(), 280);
       }
     } else {
-      // Rule 2: Blocked! Vibrate phone + shake the arrow & its connected line in place (never turns red, never fails!)
+      // Rule 2: Blocked! Reset combo, vibrate phone + shake the arrow & its connected line in place (never turns red, never fails!)
+      this.comboCount = 0;
+      this.updateHUD();
       feedback.triggerBlockedFeedback();
       this.boardView.animateArrowShake(arrow, check);
     }
@@ -3658,6 +4758,8 @@ class ArrowGameApp {
 
     this.usedShuffle = true;
     this.shuffleCount++;
+    this.comboCount = 0;
+    this.clearBonusTimeouts();
     const shuffleSeed = this.levelDef.seed + this.shuffleCount * 1009 + Math.floor( performance.now() );
 
     feedback.playShuffle();
@@ -3697,6 +4799,8 @@ class ArrowGameApp {
     this.usedHint = false;
     this.isCompleted = false;
     this.isPaused = false;
+    this.comboCount = 0;
+    this.clearBonusTimeouts();
 
     this.arrows = cloneArrows(this.restartBaseArrows);
     this.boardView.updateArrows(this.arrows, true);
@@ -3817,7 +4921,8 @@ class ArrowGameApp {
 
   updateHUD() {
     if (this.elLevelTitle) {
-      this.elLevelTitle.textContent = `关卡 ${this.levelDef.id}`;
+      const letterBadge = this.levelDef.letter ? ` · ${this.levelDef.letter}` : '';
+      this.elLevelTitle.textContent = `关卡 ${this.levelDef.id}${letterBadge}`;
     }
     this.updateTimerDOM();
 
@@ -3825,6 +4930,14 @@ class ArrowGameApp {
     const rem = this.arrows.filter(a => !a.removed).length;
     if (this.elRemainBadge) {
       this.elRemainBadge.textContent = `${rem} / ${total}`;
+    }
+    if (this.elComboBadge) {
+      const mod7 = this.comboCount % 7;
+      const prog = this.comboCount > 0 && mod7 === 0 ? 7 : mod7;
+      this.elComboBadge.textContent = `🌈 ${prog}/7`;
+      this.elComboBadge.title = `当前连击: ${this.comboCount}（每满 7 连击生成一条彩虹箭头）`;
+      this.elComboBadge.classList.toggle('combo-active', this.comboCount > 0);
+      this.elComboBadge.classList.toggle('combo-rainbow', this.comboCount > 0 && mod7 === 0);
     }
 
     if (this.elLiveStarShuffle) {
@@ -4001,13 +5114,17 @@ class ArrowGameApp {
     const totalLevels = LEVEL_DEFINITIONS.length;
     const maxStars = totalLevels * 3;
     const curStars = this.getTotalStars();
-    const finishedLevels = Object.values(this.saveData.levelRecords).filter(r => r.finished).length;
-    const threeStarLevels = Object.values(this.saveData.levelRecords).filter(r => r.stars === 3).length;
+    const finishedLevels = LEVEL_DEFINITIONS.filter(
+      l => this.saveData.levelRecords[l.id]?.finished
+    ).length;
+    const threeStarLevels = LEVEL_DEFINITIONS.filter(
+      l => this.saveData.levelRecords[l.id]?.stars === 3
+    ).length;
 
     const goals = [
       {
         title: '初露锋芒',
-        desc: '完成任意 1 个关卡',
+        desc: '完成任意 1 个英文字母关卡',
         done: finishedLevels >= 1,
       },
       {
@@ -4016,18 +5133,18 @@ class ArrowGameApp {
         done: threeStarLevels >= 1,
       },
       {
+        title: '经典 B 字降服者',
+        desc: '通关第 2 关（字母 B · 经典双环迷阵）',
+        done: Boolean(this.saveData.levelRecords[2]?.finished),
+      },
+      {
         title: '渐入佳境',
-        desc: '累计点亮 15 颗星星',
-        done: curStars >= 15,
+        desc: '累计点亮 30 颗星星',
+        done: curStars >= 30,
       },
       {
-        title: '灵蛇降服者',
-        desc: '通关经典第 17 关（灵蛇盘踞）',
-        done: Boolean(this.saveData.levelRecords[17]?.finished),
-      },
-      {
-        title: '神箭大宗师',
-        desc: `通关全部 ${totalLevels} 个关卡 (${finishedLevels}/${totalLevels})`,
+        title: '全字母制霸 (A-Z)',
+        desc: `通关全部 ${totalLevels} 个英文字母关卡 (${finishedLevels}/${totalLevels})`,
         done: finishedLevels >= totalLevels,
       },
       {

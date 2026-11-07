@@ -37,13 +37,13 @@ const combinedJS = moduleOrder
   .join('\n\n');
 
 let standaloneHTML = htmlRaw
-  .replace('<link rel="manifest" href="./manifest.json" />', '')
+  .replace(/<link rel="manifest" href="\.\/manifest\.json[^"]*" \/>/, '')
   .replace(
-    '<link rel="stylesheet" href="./src/ui/styles.css" />',
+    /<link rel="stylesheet" href="\.\/src\/ui\/styles\.css[^"]*" \/>/,
     `<style>\n${cssRaw}\n</style>`
   )
   .replace(
-    /<script type="module" src="\.\/src\/ui\/app\.js"><\/script>[\s\S]*?<\/body>/,
+    /<script type="module" src="\.\/src\/ui\/app\.js[^"]*"><\/script>[\s\S]*?<\/body>/,
     `<script>\n(function() {\n${combinedJS}\n})();\n</script>\n</body>`
   );
 

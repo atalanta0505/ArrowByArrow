@@ -270,7 +270,40 @@ body {
 .subheader-right {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+}
+
+.combo-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #9fb0cd;
+  font-variant-numeric: tabular-nums;
+  transition: transform 0.2s, background 0.2s, color 0.2s, box-shadow 0.2s;
+}
+
+.combo-badge.combo-active {
+  background: rgba(110, 181, 235, 0.18);
+  color: #ffffff;
+}
+
+.combo-badge.combo-rainbow {
+  background: linear-gradient(90deg, #ff5e7e, #ffb347, #5ec7b8, #8c7ae6);
+  color: #ffffff;
+  box-shadow: 0 0 10px rgba(255, 179, 71, 0.55);
+  transform: scale(1.06);
+}
+
+#app.theme-light .combo-badge {
+  background: rgba(43, 50, 68, 0.08);
+  color: #4b5770;
+}
+
+#app.theme-light .combo-badge.combo-active {
+  background: rgba(78, 137, 219, 0.18);
+  color: #1f293d;
 }
 
 .remain-badge {

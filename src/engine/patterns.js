@@ -1,7 +1,8 @@
 /**
- * 100 High-Density Levels for 《一箭又一箭》 (Arrow by Arrow)
- * Designed to match the exact grid density of the original WeChat mini-game (32x28 to 42x36 grids,
- * 90 to 200+ winding snake arrows per board, with 16:9 mobile portrait proportion).
+ * 26 English Alphabet Levels (A - Z) for 《一箭又一箭》 (Arrow by Arrow)
+ * Each level is sculpted in the shape of a bold capital letter A..Z on a 34x28 grid,
+ * tuned for < 100 arrows per board with high length variance (short 2-4 cell lock arrows
+ * + medium 8-15 cell winding arrows + long 18-38 cell tortuous multi-bend snakes).
  */
 
 export function sanitizeMask(mask) {
@@ -9,7 +10,6 @@ export function sanitizeMask(mask) {
   const C = mask[0].length;
   const out = mask.map(row => [...row]);
 
-  // Remove or connect any degree-0 or degree-1 isolated 1-cell islands
   let changed = true;
   let guard = 0;
   while (changed && guard++ < 8) {
@@ -33,17 +33,12 @@ export function sanitizeMask(mask) {
   return out;
 }
 
-/**
- * Create a high-density grid mask with 1-cell dot padding around the shape
- * so empty grid dots are visible around and inside the silhouette like Screenshot 1 & 2.
- */
-function buildHighDensityMask(rows, cols, shapeFn) {
+function buildLetterMask(rows, cols, shapeFn) {
   const mask = Array.from({ length: rows }, (_, r) =>
     Array.from({ length: cols }, (_, c) => {
-      // Leave 1 cell margin on outer border so external dots frame the shape nicely
       if (r === 0 || r === rows - 1 || c === 0 || c === cols - 1) return 0;
-      const ny = ((r - 1) / (rows - 3)) * 2 - 1; // -1 .. +1
-      const nx = ((c - 1) / (cols - 3)) * 2 - 1; // -1 .. +1
+      const ny = ((r - 1) / (rows - 3)) * 2 - 1; // -1 (top) .. +1 (bottom)
+      const nx = ((c - 1) / (cols - 3)) * 2 - 1; // -1 (left) .. +1 (right)
       return shapeFn(nx, ny, r, c, rows, cols) ? 1 : 0;
     })
   );
@@ -51,7 +46,7 @@ function buildHighDensityMask(rows, cols, shapeFn) {
 }
 
 /**
- * Distance from point (px, py) to segment (ax, ay)-(bx, by)
+ * Signed distance from (px, py) to segment (ax, ay) -> (bx, by)
  */
 function sdSegment(px, py, ax, ay, bx, by) {
   const pax = px - ax;
@@ -63,456 +58,358 @@ function sdSegment(px, py, ax, ay, bx, by) {
 }
 
 /**
- * Distance to box centered at (cx, cy) with half-extents (hx, hy)
+ * Axis-aligned box check: |x - cx| <= hx && |y - cy| <= hy
  */
-function sdBox(px, py, cx, cy, hx, hy) {
-  const dx = Math.abs(px - cx) - hx;
-  const dy = Math.abs(py - cy) - hy;
-  return Math.hypot(Math.max(dx, 0), Math.max(dy, 0)) + Math.min(Math.max(dx, dy), 0);
+function inBox(px, py, cx, cy, hx, hy) {
+  return Math.abs(px - cx) <= hx && Math.abs(py - cy) <= hy;
 }
 
 /**
- * Distance to circle/ellipse
+ * Elliptical ring check
  */
-function sdRing(px, py, cx, cy, radius, thickness) {
-  return Math.abs(Math.hypot(px - cx, py - cy) - radius) - thickness;
+function inRing(px, py, cx, cy, rx, ry, innerRatio = 0.42) {
+  const d = Math.hypot((px - cx) / rx, (py - cy) / ry);
+  return d <= 1.0 && d >= innerRatio;
 }
 
 /**
- * High-resolution bold glyph & emblem primitives (thick strokes like Screenshot Level 17 "B")
+ * 26 Bold Capital Letters A - Z
+ * Stroke thickness is generous (~0.48 to 0.56 in normalized [-1,1] space, i.e. 6-8 grid cells wide)
+ * so long snakes can coil and make multiple 90-degree switchbacks inside every stroke!
  */
-const SHAPE_BUILDERS = [
-  // 1. Bold Capital 'B' (The exact iconic shape from the user's Level 17 screenshot!)
+const ALPHABET_SHAPES = [
   {
-    name: '经典重装 · B字迷宫',
-    fn: (nx, ny) => {
-      const leftSpine = nx >= -0.88 && nx <= -0.22 && Math.abs(ny) <= 0.92;
+    letter: 'A',
+    title: '字母 A · 巅峰金字塔',
+    expectedSeconds: 240,
+    fn: (x, y) => {
+      const leftLeg = sdSegment(x, y, -0.06, -0.76, -0.68, 0.8) <= 0.27;
+      const rightLeg = sdSegment(x, y, 0.06, -0.76, 0.68, 0.8) <= 0.27;
+      const crossbar = inBox(x, y, 0, 0.22, 0.56, 0.21);
+      const topCrown = inBox(x, y, 0, -0.72, 0.34, 0.2);
+      const hole = Math.abs(x) <= (y + 0.38) * 0.36 && y > -0.35 && y < 0.02;
+      return (leftLeg || rightLeg || crossbar || topCrown) && !hole;
+    },
+  },
+  {
+    letter: 'B',
+    title: '字母 B · 经典双环迷阵',
+    expectedSeconds: 300,
+    fn: (x, y) => {
+      const leftSpine = x >= -0.88 && x <= -0.22 && Math.abs(y) <= 0.92;
       const topLoop =
-        Math.hypot((nx + 0.08) * 0.92, (ny + 0.46) * 1.12) <= 0.62 &&
-        Math.hypot((nx + 0.05) * 1.0, (ny + 0.46) * 1.15) >= 0.22;
+        Math.hypot((x + 0.06) * 0.9, (y + 0.45) * 1.1) <= 0.64 &&
+        Math.hypot((x + 0.02) * 1.05, (y + 0.45) * 1.15) >= 0.22;
       const botLoop =
-        Math.hypot((nx + 0.05) * 0.88, (ny - 0.46) * 1.12) <= 0.66 &&
-        Math.hypot((nx + 0.02) * 1.0, (ny - 0.46) * 1.15) >= 0.23;
-      const topBar = ny >= -0.92 && ny <= -0.64 && nx >= -0.88 && nx <= 0.35;
-      const midBar = Math.abs(ny) <= 0.16 && nx >= -0.88 && nx <= 0.42;
-      const botBar = ny >= 0.64 && ny <= 0.92 && nx >= -0.88 && nx <= 0.45;
+        Math.hypot((x + 0.03) * 0.86, (y - 0.45) * 1.1) <= 0.68 &&
+        Math.hypot((x + 0.0) * 1.05, (y - 0.45) * 1.15) >= 0.24;
+      const topBar = y >= -0.92 && y <= -0.62 && x >= -0.88 && x <= 0.36;
+      const midBar = Math.abs(y) <= 0.18 && x >= -0.88 && x <= 0.42;
+      const botBar = y >= 0.62 && y <= 0.92 && x >= -0.88 && x <= 0.45;
       return leftSpine || topLoop || botLoop || topBar || midBar || botBar;
     },
   },
-  // 2. Bold 'S' Serpent
   {
-    name: '灵蛇盘踞 · S形迷阵',
-    fn: (nx, ny) => {
-      const topArc =
-        ny <= 0.1 &&
-        sdRing(nx, (ny + 0.44) * 1.1, 0, 0, 0.48, 0.28) <= 0 &&
-        !(nx > 0.15 && ny > -0.35);
-      const botArc =
-        ny >= -0.1 &&
-        sdRing(nx, (ny - 0.44) * 1.1, 0, 0, 0.48, 0.28) <= 0 &&
-        !(nx < -0.15 && ny < 0.35);
-      const diag = sdSegment(nx, ny, -0.45, -0.25, 0.45, 0.25) <= 0.27;
-      return topArc || botArc || diag;
+    letter: 'C',
+    title: '字母 C · 新月弯弓',
+    expectedSeconds: 260,
+    fn: (x, y) => {
+      const ring = inRing(x, y, 0.04, 0, 0.92, 0.94, 0.3);
+      const opening = x > 0.28 && Math.abs(y) < 0.28;
+      const topSerif = inBox(x, y, 0.56, -0.52, 0.32, 0.26);
+      const botSerif = inBox(x, y, 0.56, 0.52, 0.32, 0.26);
+      return (ring && !opening) || topSerif || botSerif;
     },
   },
-  // 3. Giant Full Heart
   {
-    name: '炽热之心 · 满格巨心',
-    fn: (nx, ny) => {
-      const x = nx * 1.12;
-      const y = -ny * 1.1 + 0.18;
-      const a = x * x + y * y - 0.62;
-      const inside = a * a * a - x * x * y * y * y <= 0;
-      const centerHole = Math.hypot(nx, ny + 0.05) < 0.2;
-      return inside && !centerHole;
+    letter: 'D',
+    title: '字母 D · 圣殿巨盾',
+    expectedSeconds: 270,
+    fn: (x, y) => {
+      const spine = inBox(x, y, -0.56, 0, 0.32, 0.92);
+      const arc = inRing(x, y, -0.12, 0, 0.96, 0.92, 0.38) && x >= -0.35;
+      const topBar = inBox(x, y, -0.25, -0.7, 0.52, 0.22);
+      const botBar = inBox(x, y, -0.25, 0.7, 0.52, 0.22);
+      const innerHole = x > -0.22 && Math.hypot((x + 0.15) / 0.42, y / 0.42) < 0.85;
+      return (spine || arc || topBar || botBar) && !innerHole;
     },
   },
-  // 4. Royal Double-Ring Target
   {
-    name: '星环同心 · 双子魔环',
-    fn: (nx, ny) => {
-      const d = Math.hypot(nx, ny);
-      const outer = d <= 0.96 && d >= 0.56;
-      const inner = d <= 0.38;
-      const cross = (Math.abs(nx) <= 0.18 || Math.abs(ny) <= 0.18) && d <= 0.96;
-      return outer || inner || cross;
+    letter: 'E',
+    title: '字母 E · 三重回廊',
+    expectedSeconds: 270,
+    fn: (x, y) => {
+      const spine = inBox(x, y, -0.56, 0, 0.32, 0.92);
+      const topBar = inBox(x, y, 0.02, -0.7, 0.86, 0.22);
+      const midBar = inBox(x, y, -0.06, 0, 0.72, 0.21);
+      const botBar = inBox(x, y, 0.02, 0.7, 0.86, 0.22);
+      return spine || topBar || midBar || botBar;
     },
   },
-  // 5. Bold Figure '8' Hourglass
   {
-    name: '无限回廊 · 八字天枢',
-    fn: (nx, ny) => {
-      const top =
-        Math.hypot(nx * 0.92, (ny + 0.45) * 1.15) <= 0.66 &&
-        Math.hypot(nx, (ny + 0.46) * 1.15) >= 0.22;
-      const bot =
-        Math.hypot(nx * 0.88, (ny - 0.45) * 1.15) <= 0.7 &&
-        Math.hypot(nx, (ny - 0.46) * 1.15) >= 0.24;
-      const waist = Math.abs(ny) <= 0.18 && Math.abs(nx) <= 0.52;
-      return top || bot || waist;
+    letter: 'F',
+    title: '字母 F · 双翼旌旗',
+    expectedSeconds: 240,
+    fn: (x, y) => {
+      const spine = inBox(x, y, -0.52, 0, 0.34, 0.92);
+      const topBar = inBox(x, y, 0.04, -0.68, 0.86, 0.24);
+      const midBar = inBox(x, y, -0.04, -0.02, 0.72, 0.22);
+      const foot = inBox(x, y, -0.42, 0.74, 0.44, 0.18);
+      return spine || topBar || midBar || foot;
     },
   },
-  // 6. Imperial Butterfly
   {
-    name: '凤尾蝶翼 · 幻彩对称',
-    fn: (nx, ny) => {
-      const ax = Math.abs(nx);
-      const upperWing = Math.hypot((ax - 0.45) * 0.95, (ny + 0.35) * 1.05) <= 0.52;
-      const lowerWing = Math.hypot((ax - 0.38) * 1.05, (ny - 0.42) * 1.05) <= 0.46;
-      const body = ax <= 0.18 && Math.abs(ny) <= 0.85;
-      const eyeHole = Math.hypot(ax - 0.52, ny + 0.38) < 0.16;
-      return (upperWing || lowerWing || body) && !eyeHole;
+    letter: 'G',
+    title: '字母 G · 旋涡引力',
+    expectedSeconds: 300,
+    fn: (x, y) => {
+      const ring = inRing(x, y, 0.02, 0, 0.9, 0.92, 0.36);
+      const gap = x > 0.18 && y < -0.06 && y > -0.42;
+      const shelf = inBox(x, y, 0.38, 0.12, 0.5, 0.21);
+      const spur = inBox(x, y, 0.62, 0.42, 0.26, 0.38);
+      return (ring && !gap) || shelf || spur;
     },
   },
-  // 7. Four-Window Fortress
   {
-    name: '九宫重城 · 四象方阵',
-    fn: (nx, ny) => {
-      const inSquare = Math.abs(nx) <= 0.94 && Math.abs(ny) <= 0.94;
-      const hole =
-        Math.abs(nx) >= 0.22 &&
-        Math.abs(nx) <= 0.56 &&
-        Math.abs(ny) >= 0.22 &&
-        Math.abs(ny) <= 0.56;
-      return inSquare && !hole;
+    letter: 'H',
+    title: '字母 H · 双子天桥',
+    expectedSeconds: 280,
+    fn: (x, y) => {
+      const leftPillar = inBox(x, y, -0.58, 0, 0.32, 0.92);
+      const rightPillar = inBox(x, y, 0.58, 0, 0.32, 0.92);
+      const bridge = inBox(x, y, 0, 0, 0.65, 0.25);
+      return leftPillar || rightPillar || bridge;
     },
   },
-  // 8. Bold Letter 'A'
   {
-    name: '巅峰王座 · A字高塔',
-    fn: (nx, ny) => {
-      const leftLeg = sdSegment(nx, ny, 0, -0.82, -0.68, 0.82) <= 0.26;
-      const rightLeg = sdSegment(nx, ny, 0, -0.82, 0.68, 0.82) <= 0.26;
-      const crossbar = Math.abs(ny - 0.18) <= 0.2 && Math.abs(nx) <= 0.55;
-      const topCap = Math.abs(ny + 0.72) <= 0.18 && Math.abs(nx) <= 0.35;
-      return leftLeg || rightLeg || crossbar || topCap;
+    letter: 'I',
+    title: '字母 I · 擎天圣柱',
+    expectedSeconds: 260,
+    fn: (x, y) => {
+      const topCap = inBox(x, y, 0, -0.66, 0.88, 0.28);
+      const pillar = inBox(x, y, 0, 0, 0.46, 0.92);
+      const botCap = inBox(x, y, 0, 0.66, 0.88, 0.28);
+      return topCap || pillar || botCap;
     },
   },
-  // 9. Bold Letter 'G'
   {
-    name: '玄武盘旋 · G字引力',
-    fn: (nx, ny) => {
-      const ring = sdRing(nx, ny, 0, 0, 0.62, 0.28) <= 0 && !(nx > 0.2 && ny < -0.05 && ny > -0.45);
-      const shelf = ny >= -0.08 && ny <= 0.28 && nx >= -0.05 && nx <= 0.88;
-      const pillar = nx >= 0.42 && nx <= 0.88 && ny >= -0.08 && ny <= 0.75;
-      return ring || shelf || pillar;
+    letter: 'J',
+    title: '字母 J · 沧海钩戟',
+    expectedSeconds: 260,
+    fn: (x, y) => {
+      const topCap = inBox(x, y, 0.12, -0.66, 0.78, 0.28);
+      const stem = inBox(x, y, 0.32, -0.04, 0.42, 0.72);
+      const hook = inRing(x, y, -0.06, 0.36, 0.82, 0.58, 0.26) && y >= 0.06;
+      const leftTip = inBox(x, y, -0.56, 0.2, 0.34, 0.3);
+      return topCap || stem || hook || leftTip;
     },
   },
-  // 10. Giant Five-Pointed Star Emblem
   {
-    name: '耀世星芒 · 五角星阵',
-    fn: (nx, ny) => {
-      const angle = Math.atan2(ny, nx) + Math.PI / 2;
-      const r = Math.hypot(nx, ny);
-      const starBound = 0.68 + 0.26 * Math.cos(angle * 5);
-      const centerHole = r < 0.2;
-      return r <= starBound && !centerHole;
+    letter: 'K',
+    title: '字母 K · 破晓战戟',
+    expectedSeconds: 300,
+    fn: (x, y) => {
+      const spine = inBox(x, y, -0.56, 0, 0.32, 0.92);
+      const upperArm = sdSegment(x, y, -0.25, 0.05, 0.64, -0.74) <= 0.28;
+      const lowerArm = sdSegment(x, y, -0.2, -0.05, 0.64, 0.74) <= 0.28;
+      const knot = inBox(x, y, -0.2, 0, 0.32, 0.24);
+      return spine || upperArm || lowerArm || knot;
     },
   },
-  // 11. Bold Letter 'M'
   {
-    name: '群峰耸立 · M字双峡',
-    fn: (nx, ny) => {
-      const ax = Math.abs(nx);
-      const outerPillar = ax >= 0.46 && ax <= 0.92 && Math.abs(ny) <= 0.9;
-      const vDiagonal = sdSegment(ax, ny, 0.7, -0.78, 0.0, 0.35) <= 0.25;
-      const centerSpike = ax <= 0.24 && ny >= -0.25 && ny <= 0.65;
-      return outerPillar || vDiagonal || centerSpike;
+    letter: 'L',
+    title: '字母 L · 铁壁角楼',
+    expectedSeconds: 260,
+    fn: (x, y) => {
+      const topSerif = inBox(x, y, -0.42, -0.7, 0.48, 0.22);
+      const spine = inBox(x, y, -0.46, 0, 0.42, 0.92);
+      const base = inBox(x, y, 0.04, 0.62, 0.88, 0.32);
+      const cornerTip = inBox(x, y, 0.6, 0.36, 0.32, 0.38);
+      return topSerif || spine || base || cornerTip;
     },
   },
-  // 12. Bold Letter 'R'
   {
-    name: '骑士战旗 · R字纹章',
-    fn: (nx, ny) => {
-      const spine = nx >= -0.88 && nx <= -0.22 && Math.abs(ny) <= 0.92;
+    letter: 'M',
+    title: '字母 M · 群峰双峡',
+    expectedSeconds: 330,
+    fn: (x, y) => {
+      const ax = Math.abs(x);
+      const outerPillar = inBox(ax, y, 0.64, 0, 0.26, 0.92);
+      const diag = sdSegment(ax, y, 0.64, -0.72, 0.0, 0.28) <= 0.25;
+      const centerDrop = inBox(x, y, 0, 0.15, 0.24, 0.42);
+      return outerPillar || diag || centerDrop;
+    },
+  },
+  {
+    letter: 'N',
+    title: '字母 N · 斜阳回廊',
+    expectedSeconds: 300,
+    fn: (x, y) => {
+      const leftPillar = inBox(x, y, -0.58, 0, 0.3, 0.92);
+      const rightPillar = inBox(x, y, 0.58, 0, 0.3, 0.92);
+      const diag = sdSegment(x, y, -0.48, -0.68, 0.48, 0.68) <= 0.27;
+      return leftPillar || rightPillar || diag;
+    },
+  },
+  {
+    letter: 'O',
+    title: '字母 O · 永恒星环',
+    expectedSeconds: 280,
+    fn: (x, y) => {
+      return inRing(x, y, 0, 0, 0.88, 0.92, 0.38);
+    },
+  },
+  {
+    letter: 'P',
+    title: '字母 P · 皇家权杖',
+    expectedSeconds: 270,
+    fn: (x, y) => {
+      const spine = inBox(x, y, -0.56, 0, 0.32, 0.92);
       const topBowl =
-        Math.hypot((nx + 0.05) * 0.88, (ny + 0.42) * 1.1) <= 0.66 &&
-        Math.hypot((nx + 0.02) * 1.0, (ny + 0.42) * 1.15) >= 0.22;
-      const leg = sdSegment(nx, ny, -0.15, 0.02, 0.65, 0.82) <= 0.26;
-      const topBar = ny >= -0.92 && ny <= -0.62 && nx >= -0.88 && nx <= 0.35;
-      return spine || topBowl || leg || topBar;
-    },
-  },
-  // 13. Ornate Chinese Lantern
-  {
-    name: '盛世华灯 · 宫灯迷阵',
-    fn: (nx, ny) => {
-      const body = Math.hypot(nx * 0.92, ny * 1.08) <= 0.86;
-      const topCap = Math.abs(ny + 0.82) <= 0.14 && Math.abs(nx) <= 0.52;
-      const botCap = Math.abs(ny - 0.82) <= 0.14 && Math.abs(nx) <= 0.52;
-      const slitL = Math.abs(nx + 0.35) <= 0.11 && Math.abs(ny) <= 0.42;
-      const slitR = Math.abs(nx - 0.35) <= 0.11 && Math.abs(ny) <= 0.42;
-      return (body || topCap || botCap) && !slitL && !slitR;
-    },
-  },
-  // 14. Four-Leaf Clover
-  {
-    name: '四叶奇迹 · 幸运草堂',
-    fn: (nx, ny) => {
-      const ax = Math.abs(nx);
-      const ay = Math.abs(ny);
-      const leaf = Math.hypot(ax - 0.4, ay - 0.4) <= 0.48;
-      const core = Math.hypot(nx, ny) <= 0.34;
-      const hole = Math.hypot(ax - 0.48, ay - 0.48) < 0.14;
-      return (leaf || core) && !hole;
-    },
-  },
-  // 15. Bold Letter 'Q'
-  {
-    name: '深渊之眼 · Q字魔戒',
-    fn: (nx, ny) => {
-      const ring = sdRing(nx, ny, 0, -0.04, 0.62, 0.28) <= 0;
-      const tail = sdSegment(nx, ny, 0.08, 0.15, 0.72, 0.82) <= 0.24;
-      const innerBar = Math.abs(ny + 0.04) <= 0.14 && Math.abs(nx) <= 0.38;
-      return ring || tail || innerBar;
-    },
-  },
-  // 16. Royal Crown
-  {
-    name: '至尊王冠 · 黄金冕旒',
-    fn: (nx, ny) => {
-      const base = ny >= 0.28 && ny <= 0.88 && Math.abs(nx) <= 0.9;
-      const midBand = ny >= -0.25 && ny <= 0.35 && Math.abs(nx) <= 0.86;
-      const leftPeak = sdSegment(nx, ny, -0.75, 0.2, -0.82, -0.78) <= 0.22;
-      const rightPeak = sdSegment(nx, ny, 0.75, 0.2, 0.82, -0.78) <= 0.22;
-      const centerPeak = sdSegment(nx, ny, 0, 0.25, 0, -0.85) <= 0.24;
-      const diagL = sdSegment(nx, ny, -0.78, -0.68, 0, 0.1) <= 0.2;
-      const diagR = sdSegment(nx, ny, 0.78, -0.68, 0, 0.1) <= 0.2;
-      const jewelHole = Math.abs(ny - 0.56) <= 0.12 && Math.abs( Math.abs(nx) - 0.42 ) <= 0.14;
-      return (base || midBand || leftPeak || rightPeak || centerPeak || diagL || diagR) && !jewelHole;
-    },
-  },
-  // 17. Bold Letter 'K'
-  {
-    name: '破晓之刃 · K字战戟',
-    fn: (nx, ny) => {
-      const spine = nx >= -0.88 && nx <= -0.22 && Math.abs(ny) <= 0.92;
-      const upperArm = sdSegment(nx, ny, -0.3, 0.05, 0.68, -0.78) <= 0.27;
-      const lowerArm = sdSegment(nx, ny, -0.2, -0.05, 0.68, 0.78) <= 0.27;
-      const crossBlock = Math.abs(ny) <= 0.25 && nx >= -0.88 && nx <= 0.25;
-      return spine || upperArm || lowerArm || crossBlock;
-    },
-  },
-  // 18. Owl Guardian
-  {
-    name: '暗夜枭雄 · 守望图腾',
-    fn: (nx, ny) => {
-      const body = Math.hypot(nx * 0.95, (ny - 0.12) * 0.92) <= 0.86;
-      const head = Math.hypot(nx * 1.0, (ny + 0.52) * 1.2) <= 0.78;
-      const earL = sdSegment(nx, ny, -0.45, -0.5, -0.75, -0.88) <= 0.22;
-      const earR = sdSegment(nx, ny, 0.45, -0.5, 0.75, -0.88) <= 0.22;
-      const eyeL = Math.hypot(nx + 0.34, ny + 0.42) < 0.18;
-      const eyeR = Math.hypot(nx - 0.34, ny + 0.42) < 0.18;
-      const bellyHole = Math.hypot(nx, ny - 0.38) < 0.2;
-      return (body || head || earL || earR) && !eyeL && !eyeR && !bellyHole;
-    },
-  },
-  // 19. Bold Number '2' / Swan
-  {
-    name: '凌波天鹅 · 贰字迷局',
-    fn: (nx, ny) => {
-      const topArc =
-        ny <= 0.05 &&
-        sdRing(nx, (ny + 0.42) * 1.1, 0, 0, 0.5, 0.28) <= 0 &&
-        !(nx < -0.25 && ny > -0.25);
-      const diag = sdSegment(nx, ny, 0.52, -0.25, -0.62, 0.72) <= 0.27;
-      const base = ny >= 0.48 && ny <= 0.92 && Math.abs(nx) <= 0.88;
-      return topArc || diag || base;
-    },
-  },
-  // 20. Bold Number '5'
-  {
-    name: '五岳独尊 · 伍字矩阵',
-    fn: (nx, ny) => {
-      const topBar = ny >= -0.92 && ny <= -0.52 && nx >= -0.86 && nx <= 0.82;
-      const leftDrop = nx >= -0.86 && nx <= -0.24 && ny >= -0.92 && ny <= 0.08;
-      const midBar = Math.abs(ny + 0.05) <= 0.22 && nx >= -0.86 && nx <= 0.45;
-      const botLoop =
-        ny >= -0.2 &&
-        sdRing(nx, (ny - 0.38) * 1.08, 0.02, 0, 0.5, 0.28) <= 0 &&
-        !(nx < -0.35 && ny < 0.42 && ny > 0.08);
-      return topBar || leftDrop || midBar || botLoop;
-    },
-  },
-  // 21. Bold Number '6'
-  {
-    name: '六合乾坤 · 陆字旋涡',
-    fn: (nx, ny) => {
-      const outerC = sdRing(nx, ny * 0.92, 0.05, 0, 0.62, 0.27) <= 0 && !(nx > 0.25 && ny < -0.15);
-      const botLoop = sdRing(nx, (ny - 0.35) * 1.1, 0, 0, 0.48, 0.26) <= 0;
-      const bridge = Math.abs(ny - 0.02) <= 0.2 && Math.abs(nx) <= 0.65;
-      return outerC || botLoop || bridge;
-    },
-  },
-  // 22. Bold Number '9'
-  {
-    name: '九霄云外 · 玖字神殿',
-    fn: (nx, ny) => {
-      const outerC = sdRing(nx, ny * 0.92, -0.05, 0, 0.62, 0.27) <= 0 && !(nx < -0.25 && ny > 0.15);
-      const topLoop = sdRing(nx, (ny + 0.35) * 1.1, 0, 0, 0.48, 0.26) <= 0;
-      const bridge = Math.abs(ny + 0.02) <= 0.2 && Math.abs(nx) <= 0.65;
-      return outerC || topLoop || bridge;
-    },
-  },
-  // 23. Bold Letter 'E' & Comb Maze
-  {
-    name: '千层书阁 · E字回廊',
-    fn: (nx, ny) => {
-      const spine = nx >= -0.88 && nx <= -0.25 && Math.abs(ny) <= 0.92;
-      const topBar = ny >= -0.92 && ny <= -0.52 && nx >= -0.88 && nx <= 0.86;
-      const midBar = Math.abs(ny) <= 0.22 && nx >= -0.88 && nx <= 0.72;
-      const botBar = ny >= 0.52 && ny <= 0.92 && nx >= -0.88 && nx <= 0.86;
-      const rightTipTop = nx >= 0.42 && nx <= 0.86 && ny >= -0.92 && ny <= -0.28;
-      const rightTipBot = nx >= 0.42 && nx <= 0.86 && ny >= 0.28 && ny <= 0.92;
-      return spine || topBar || midBar || botBar || rightTipTop || rightTipBot;
-    },
-  },
-  // 24. Bold Letter 'H' Cathedral
-  {
-    name: '双子天桥 · H字连城',
-    fn: (nx, ny) => {
-      const ax = Math.abs(nx);
-      const pillars = ax >= 0.34 && ax <= 0.9 && Math.abs(ny) <= 0.92;
-      const bridge = Math.abs(ny) <= 0.28 && ax <= 0.9;
-      const topArch = ny <= -0.58 && ny >= -0.92 && ax <= 0.65;
-      const botArch = ny >= 0.58 && ny <= 0.92 && ax <= 0.65;
-      return pillars || bridge || topArch || botArch;
-    },
-  },
-  // 25. Bold Letter 'W'
-  {
-    name: '沧海龙吟 · W字深谷',
-    fn: (nx, ny) => {
-      const ax = Math.abs(nx);
-      const outerPillar = ax >= 0.46 && ax <= 0.92 && Math.abs(ny) <= 0.9;
-      const vDiagonal = sdSegment(ax, -ny, 0.7, -0.78, 0.0, 0.35) <= 0.25;
-      const centerSpike = ax <= 0.24 && ny >= -0.65 && ny <= 0.25;
-      return outerPillar || vDiagonal || centerSpike;
-    },
-  },
-  // 26. Bold Letter 'Z'
-  {
-    name: '雷霆闪电 · Z字风暴',
-    fn: (nx, ny) => {
-      const topBar = ny >= -0.92 && ny <= -0.48 && Math.abs(nx) <= 0.88;
-      const botBar = ny >= 0.48 && ny <= 0.92 && Math.abs(nx) <= 0.88;
-      const diag = sdSegment(nx, ny, 0.65, -0.6, -0.65, 0.6) <= 0.28;
-      const centerBelt = Math.abs(ny) <= 0.18 && Math.abs(nx) <= 0.55;
-      return topBar || botBar || diag || centerBelt;
-    },
-  },
-  // 27. Bold Letter 'P' & Loop
-  {
-    name: '战锤勋章 · P字圣殿',
-    fn: (nx, ny) => {
-      const spine = nx >= -0.88 && nx <= -0.22 && Math.abs(ny) <= 0.92;
-      const topBowl =
-        Math.hypot((nx + 0.05) * 0.85, (ny + 0.35) * 1.05) <= 0.72 &&
-        Math.hypot((nx + 0.02) * 1.0, (ny + 0.35) * 1.1) >= 0.23;
-      const foot = ny >= 0.52 && ny <= 0.92 && nx >= -0.88 && nx <= 0.45;
+        Math.hypot((x + 0.04) * 0.86, (y + 0.32) * 1.05) <= 0.72 &&
+        Math.hypot((x + 0.02) * 1.05, (y + 0.32) * 1.1) >= 0.24;
+      const foot = inBox(x, y, -0.38, 0.72, 0.48, 0.2);
       return spine || topBowl || foot;
     },
   },
-  // 28. Anchor of Poseidon
   {
-    name: '海神巨锚 · 深渊铁壁',
-    fn: (nx, ny) => {
-      const ring = sdRing(nx, ny, 0, -0.58, 0.26, 0.14) <= 0;
-      const shaft = Math.abs(nx) <= 0.22 && ny >= -0.42 && ny <= 0.88;
-      const crossbar = Math.abs(ny + 0.16) <= 0.18 && Math.abs(nx) <= 0.72;
-      const fluke =
-        ny >= 0.05 &&
-        sdRing(nx, (ny - 0.1) * 1.05, 0, 0, 0.68, 0.24) <= 0;
-      return ring || shaft || crossbar || fluke;
+    letter: 'Q',
+    title: '字母 Q · 深渊魔戒',
+    expectedSeconds: 320,
+    fn: (x, y) => {
+      const ring = inRing(x, y, 0, -0.05, 0.86, 0.86, 0.36);
+      const tail = sdSegment(x, y, 0.1, 0.2, 0.72, 0.82) <= 0.26;
+      return ring || tail;
     },
   },
-  // 29. Celtic Shield Knot
   {
-    name: '凯尔特盾 · 圣堂盘结',
-    fn: (nx, ny) => {
-      const oct = Math.abs(nx) + Math.abs(ny) <= 1.38 && Math.max(Math.abs(nx), Math.abs(ny)) <= 0.92;
-      const ax = Math.abs(nx);
-      const ay = Math.abs(ny);
-      const windowHole = ax >= 0.24 && ax <= 0.52 && ay >= 0.24 && ay <= 0.52;
-      return oct && !windowHole;
+    letter: 'R',
+    title: '字母 R · 骑士纹章',
+    expectedSeconds: 320,
+    fn: (x, y) => {
+      const spine = inBox(x, y, -0.56, 0, 0.32, 0.92);
+      const topBowl =
+        Math.hypot((x + 0.04) * 0.86, (y + 0.4) * 1.1) <= 0.68 &&
+        Math.hypot((x + 0.0) * 1.05, (y + 0.4) * 1.15) >= 0.23;
+      const leg = sdSegment(x, y, -0.15, 0.02, 0.64, 0.78) <= 0.27;
+      const topBar = inBox(x, y, -0.25, -0.72, 0.55, 0.2);
+      return spine || topBowl || leg || topBar;
     },
   },
-  // 30. Yin-Yang Dual Vortex
   {
-    name: '太极两仪 · 阴阳双鱼',
-    fn: (nx, ny) => {
-      const d = Math.hypot(nx, ny);
-      const eye1 = Math.hypot(nx, ny + 0.45) < 0.18;
-      const eye2 = Math.hypot(nx, ny - 0.45) < 0.18;
-      return d <= 0.94 && !eye1 && !eye2;
+    letter: 'S',
+    title: '字母 S · 灵蛇盘踞',
+    expectedSeconds: 300,
+    fn: (x, y) => {
+      const topLoop =
+        y <= 0.12 &&
+        inRing(x, y, 0, -0.42, 0.82, 0.52, 0.28) &&
+        !(x > 0.2 && y > -0.32);
+      const botLoop =
+        y >= -0.12 &&
+        inRing(x, y, 0, 0.42, 0.82, 0.52, 0.28) &&
+        !(x < -0.2 && y < 0.32);
+      const diag = sdSegment(x, y, -0.46, -0.24, 0.46, 0.24) <= 0.27;
+      return topLoop || botLoop || diag;
+    },
+  },
+  {
+    letter: 'T',
+    title: '字母 T · 雷神战锤',
+    expectedSeconds: 260,
+    fn: (x, y) => {
+      const topBar = inBox(x, y, 0, -0.62, 0.9, 0.32);
+      const topEars = inBox(Math.abs(x), y, 0.68, -0.4, 0.24, 0.3);
+      const stem = inBox(x, y, 0, 0.08, 0.44, 0.84);
+      const base = inBox(x, y, 0, 0.72, 0.64, 0.22);
+      return topBar || topEars || stem || base;
+    },
+  },
+  {
+    letter: 'U',
+    title: '字母 U · 深谷马蹄',
+    expectedSeconds: 270,
+    fn: (x, y) => {
+      const ax = Math.abs(x);
+      const pillars = inBox(ax, y, 0.58, -0.22, 0.3, 0.7);
+      const bottomArc = y >= 0.1 && inRing(x, y, 0, 0.28, 0.88, 0.64, 0.35);
+      return pillars || bottomArc;
+    },
+  },
+  {
+    letter: 'V',
+    title: '字母 V · 胜利双翼',
+    expectedSeconds: 260,
+    fn: (x, y) => {
+      const ax = Math.abs(x);
+      const wing = sdSegment(ax, y, 0.66, -0.74, 0.04, 0.74) <= 0.28;
+      const topSerif = inBox(ax, y, 0.62, -0.72, 0.26, 0.2);
+      const tip = inBox(x, y, 0, 0.68, 0.32, 0.24);
+      return wing || topSerif || tip;
+    },
+  },
+  {
+    letter: 'W',
+    title: '字母 W · 沧海龙吟',
+    expectedSeconds: 340,
+    fn: (x, y) => {
+      const ax = Math.abs(x);
+      const outerPillar = inBox(ax, y, 0.64, 0, 0.26, 0.92);
+      const diag = sdSegment(ax, -y, 0.64, -0.72, 0.0, 0.28) <= 0.25;
+      const centerPeak = inBox(x, y, 0, -0.15, 0.24, 0.42);
+      return outerPillar || diag || centerPeak;
+    },
+  },
+  {
+    letter: 'X',
+    title: '字母 X · 星十字刃',
+    expectedSeconds: 280,
+    fn: (x, y) => {
+      const d1 = sdSegment(x, y, -0.64, -0.74, 0.64, 0.74) <= 0.27;
+      const d2 = sdSegment(x, y, 0.64, -0.74, -0.64, 0.74) <= 0.27;
+      const serifs = inBox(Math.abs(x), Math.abs(y), 0.56, 0.74, 0.3, 0.18);
+      return d1 || d2 || serifs;
+    },
+  },
+  {
+    letter: 'Y',
+    title: '字母 Y · 圣杯分岔',
+    expectedSeconds: 260,
+    fn: (x, y) => {
+      const ax = Math.abs(x);
+      const upperFork = sdSegment(ax, y, 0.64, -0.74, 0.0, 0.05) <= 0.28;
+      const stem = inBox(x, y, 0, 0.42, 0.36, 0.5);
+      const base = inBox(x, y, 0, 0.74, 0.54, 0.18);
+      return upperFork || stem || base;
+    },
+  },
+  {
+    letter: 'Z',
+    title: '字母 Z · 雷霆折光',
+    expectedSeconds: 280,
+    fn: (x, y) => {
+      const topBar = inBox(x, y, 0, -0.68, 0.86, 0.24);
+      const botBar = inBox(x, y, 0, 0.68, 0.86, 0.24);
+      const diag = sdSegment(x, y, 0.62, -0.58, -0.62, 0.58) <= 0.27;
+      const centerBelt = inBox(x, y, 0, 0, 0.48, 0.18);
+      return topBar || botBar || diag || centerBelt;
     },
   },
 ];
 
-const DIFFICULTY_TIERS = [
-  { maxId: 20, label: '高密初阶', baseRows: 36, baseCols: 30, expectedSec: 360, minLen: 3, maxLen: 8 },
-  { maxId: 50, label: '高密进阶', baseRows: 38, baseCols: 32, expectedSec: 450, minLen: 3, maxLen: 9 },
-  { maxId: 80, label: '烧脑大师', baseRows: 40, baseCols: 34, expectedSec: 540, minLen: 3, maxLen: 10 },
-  { maxId: 100, label: '传奇宗师', baseRows: 42, baseCols: 36, expectedSec: 600, minLen: 3, maxLen: 10 },
-];
-
-/**
- * Apply subtle organic variations (rotations/mirrors/inner carve patterns) for levels 31..100
- * while keeping Level 17 strictly locked to the iconic Bold 'B' from the screenshot!
- */
-function buildLevelDefinition(id) {
-  const tier = DIFFICULTY_TIERS.find(t => id <= t.maxId) || DIFFICULTY_TIERS[DIFFICULTY_TIERS.length - 1];
-
-  // Ensure Level 17 is specifically the Bold 'B' from the user's screenshot!
-  let builderIdx;
-  if (id === 17) {
-    builderIdx = 0; // Bold 'B'
-  } else if (id === 1) {
-    builderIdx = 0; // Let Level 1 also start with the iconic high-density Bold 'B' style!
-  } else if (id === 2) {
-    builderIdx = 1; // Bold 'S' Serpent
-  } else {
-    builderIdx = (id * 7 + Math.floor(id / 3)) % SHAPE_BUILDERS.length;
-  }
-
-  const baseBuilder = SHAPE_BUILDERS[builderIdx];
-  const variant = Math.floor((id - 1) / SHAPE_BUILDERS.length);
-
-  const rows = id === 17 ? 38 : tier.baseRows;
-  const cols = id === 17 ? 32 : tier.baseCols;
-
-  const mask = buildHighDensityMask(rows, cols, (nx, ny, r, c) => {
-    let x = nx;
-    let y = ny;
-    // Apply symmetry/orientation variations on higher cycles (except Level 17 which stays canonical)
-    if (id !== 17) {
-      if (variant === 1) {
-        x = -nx;
-      } else if (variant === 2) {
-        y = -ny;
-      } else if (variant >= 3) {
-        x = -nx;
-        y = -ny;
-      }
-    }
-    return baseBuilder.fn(x, y, r, c, rows, cols);
-  });
-
-  const suffix = variant > 0 && id !== 17 ? ` · 贰式` : '';
-  const name = id === 17 ? '经典17关 · B字迷宫' : `${baseBuilder.name}${suffix}`;
-
+export const LEVEL_DEFINITIONS = ALPHABET_SHAPES.map((item, idx) => {
+  const id = idx + 1;
+  const rows = 38;
+  const cols = 32;
   return {
     id,
-    name,
-    difficulty: tier.label,
-    expectedSeconds: tier.expectedSec,
-    seed: 10000 + id * 313,
-    minSnakeLen: tier.minLen,
-    maxSnakeLen: tier.maxLen,
-    mask,
+    letter: item.letter,
+    name: item.title,
+    difficulty: idx < 8 ? '字母初阶' : idx < 18 ? '曲折进阶' : '烧脑大师',
+    expectedSeconds: item.expectedSeconds,
+    seed: 20260 + id * 509,
+    minSnakeLen: 2,
+    maxSnakeLen: 40,
+    mask: buildLetterMask(rows, cols, item.fn),
   };
-}
-
-export const LEVEL_DEFINITIONS = Array.from({ length: 100 }, (_, i) =>
-  buildLevelDefinition(i + 1)
-);
+});

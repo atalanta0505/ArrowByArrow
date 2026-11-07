@@ -2,17 +2,28 @@
  * Main Application Controller for 《一箭又一箭》 纯净定制版
  */
 
-import { LEVEL_DEFINITIONS } from '../engine/patterns.js';
+import { LEVEL_DEFINITIONS } from '../engine/patterns.js?v=8';
 import {
   generateFullLevel,
   shuffleRemainingArrows,
   extendShuffledToFull,
-} from '../engine/generator.js';
-import { checkArrowExit, getRandomHintArrow } from '../engine/solver.js';
-import { BoardCanvasView } from '../renderer/canvasView.js';
-import { feedback } from '../audio/soundAndHaptics.js';
+} from '../engine/generator.js?v=8';
+import {
+  checkArrowExit,
+  getRandomHintArrow,
+  getRemovableArrows,
+} from '../engine/solver.js?v=8';
+import { BoardCanvasView } from '../renderer/canvasView.js?v=8';
+import { feedback } from '../audio/soundAndHaptics.js?v=8';
 
-const STORAGE_KEY = 'arrow_by_arrow_custom_save_v1';
+const STORAGE_KEY = 'arrow_by_arrow_alphabet26_classic_maze_v6';
+const LEGACY_STORAGE_KEYS = [
+  'arrow_by_arrow_custom_save_v1',
+  'arrow_by_arrow_custom_save_v2',
+  'arrow_by_arrow_custom_save_v3',
+  'arrow_by_arrow_custom_save_v4',
+  'arrow_by_arrow_custom_save_v5',
+];
 
 function cloneArrows(arrows) {
   return arrows.map(a => ({
@@ -21,6 +32,8 @@ function cloneArrows(arrows) {
     head: { r: a.head.r, c: a.head.c },
     dir: { dr: a.dir.dr, dc: a.dir.dc },
     removed: Boolean(a.removed),
+    isRainbow: Boolean(a.isRainbow),
+    isBonusRed: false,
   }));
 }
 
@@ -91,6 +104,8 @@ class ArrowGameApp {
     // so that clicking Restart rebuilds the full board based on the shuffled layout!
     this.restartBaseArrows = [];
     this.shuffleCount = 0;
+    this.comboCount = 0;
+    this.bonusTimeouts = [];
 
     // 3-Star tracking for current round
     this.usedShuffle = false;
@@ -111,11 +126,19 @@ class ArrowGameApp {
 
   loadSaveData() {
     try {
+      // Purge all legacy save data & records from previous versions
+      for (const oldKey of LEGACY_STORAGE_KEYS) {
+        localStorage.removeItem(oldKey);
+      }
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
+        const safeIdx = Math.max(
+          0,
+          Math.min(parsed.lastLevelIdx || 0, LEVEL_DEFINITIONS.length - 1)
+        );
         return {
-          lastLevelIdx: parsed.lastLevelIdx || 0,
+          lastLevelIdx: safeIdx,
           theme: parsed.theme || 'dark',
           sound: parsed.sound !== false,
           vibrate: parsed.vibrate !== false,
@@ -141,7 +164,8 @@ class ArrowGameApp {
 
   getTotalStars() {
     let sum = 0;
-    for (const rec of Object.values(this.saveData.levelRecords)) {
+    for (const lvl of LEVEL_DEFINITIONS) {
+      const rec = this.saveData.levelRecords[lvl.id];
       if (rec && typeof rec.stars === 'number') {
         sum += rec.stars;
       }
@@ -170,6 +194,7 @@ class ArrowGameApp {
     this.elLevelTitle = document.getElementById('levelTitleText');
     this.elTimerText = document.getElementById('timerText');
     this.elExpectedText = document.getElementById('expectedTimeText');
+    this.elComboBadge = document.getElementById('comboBadge');
     this.elRemainBadge = document.getElementById('remainBadge');
     this.elLiveStarShuffle = document.getElementById('liveStarShuffle');
     this.elLiveStarHint = document.getElementById('liveStarHint');
@@ -282,6 +307,8 @@ class ArrowGameApp {
     this.usedHint = false;
     this.isCompleted = false;
     this.isPaused = false;
+    this.comboCount = 0;
+    this.clearBonusTimeouts();
 
     if (freshGenerate) {
       const generated = generateFullLevel(this.levelDef);
@@ -305,18 +332,99 @@ class ArrowGameApp {
     this.updateHUD();
   }
 
+  clearBonusTimeouts() {
+    if (this.bonusTimeouts && this.bonusTimeouts.length > 0) {
+      for (const tid of this.bonusTimeouts) clearTimeout(tid);
+      this.bonusTimeouts = [];
+    }
+  }
+
+  /**
+   * 7-Combo Reward: Randomly turn one unremoved normal arrow into a Rainbow Arrow (彩虹箭头)
+   */
+  spawnRainbowArrow() {
+    const candidates = this.arrows.filter(
+      a =>
+        !a.removed &&
+        !a.isRainbow &&
+        !a.isBonusRed &&
+        !this.boardView.slitheringArrows.has(a.id)
+    );
+    if (candidates.length === 0) return;
+
+    const chosen = candidates[Math.floor(Math.random() * candidates.length)];
+    chosen.isRainbow = true;
+    this.boardView.needsRender = true;
+    feedback.playRainbowSpawn();
+    this.showToast(`🌈 ${this.comboCount}连击达成！已生成一条彩虹箭头`, 2200);
+  }
+
+  /**
+   * When a Rainbow Arrow is cleared: randomly select one currently removable arrow,
+   * turn it RED first (`isBonusRed = true` for 420ms), and then automatically clear it!
+   */
+  triggerRainbowBonusClear() {
+    const removableNow = getRemovableArrows(this.arrows, this.rows, this.cols).filter(
+      a => !a.removed && !a.isBonusRed && !this.boardView.slitheringArrows.has(a.id)
+    );
+    if (removableNow.length === 0) return;
+
+    const bonusArrow = removableNow[Math.floor(Math.random() * removableNow.length)];
+    bonusArrow.isBonusRed = true;
+    this.boardView.needsRender = true;
+    feedback.playBonusRedLock();
+    this.showToast('🎯 彩虹箭触发！附带箭头已变红锁定，即将自动清除', 2000);
+
+    const tid = setTimeout(() => {
+      if (this.isCompleted || bonusArrow.removed) return;
+      const wasAlsoRainbow = Boolean(bonusArrow.isRainbow);
+      feedback.playArrowClear();
+      bonusArrow.removed = true;
+      this.updateHUD();
+
+      this.boardView.animateArrowClear(bonusArrow, () => {
+        this.checkLevelComplete();
+      });
+
+      if (wasAlsoRainbow) {
+        this.triggerRainbowBonusClear();
+      }
+
+      const remaining = this.arrows.filter(a => !a.removed).length;
+      if (remaining === 0) {
+        setTimeout(() => this.checkLevelComplete(), 280);
+      }
+    }, 420);
+
+    this.bonusTimeouts.push(tid);
+  }
+
   /**
    * Handle player tapping an arrow on the canvas
    */
   handleArrowTap(arrow) {
-    if (this.isCompleted || arrow.removed) return;
+    if (this.isCompleted || arrow.removed || arrow.isBonusRed) return;
     if (this.boardView.slitheringArrows.has(arrow.id)) return;
 
     const check = checkArrowExit(arrow, this.arrows, this.rows, this.cols);
     if (check.canExit) {
-      // Clear path! Launch snake slithering animation out of the board
+      const wasRainbow = Boolean(arrow.isRainbow);
+
+      // Clear path! Play target-hit sound & launch snake slithering animation out of the board
       feedback.playArrowClear();
       arrow.removed = true;
+      this.comboCount++;
+
+      // Every 7*combo, turn a random remaining arrow into a Rainbow Arrow!
+      if (this.comboCount > 0 && this.comboCount % 7 === 0) {
+        this.spawnRainbowArrow();
+      }
+
+      // If the cleared arrow itself is a Rainbow Arrow, lock onto a currently removable arrow (turns red -> clears)!
+      if (wasRainbow) {
+        this.triggerRainbowBonusClear();
+      }
+
       this.updateHUD();
 
       this.boardView.animateArrowClear(arrow, () => {
@@ -328,7 +436,9 @@ class ArrowGameApp {
         setTimeout(() => this.checkLevelComplete(), 280);
       }
     } else {
-      // Rule 2: Blocked! Vibrate phone + shake the arrow & its connected line in place (never turns red, never fails!)
+      // Rule 2: Blocked! Reset combo, vibrate phone + shake the arrow & its connected line in place (never turns red, never fails!)
+      this.comboCount = 0;
+      this.updateHUD();
       feedback.triggerBlockedFeedback();
       this.boardView.animateArrowShake(arrow, check);
     }
@@ -364,6 +474,8 @@ class ArrowGameApp {
 
     this.usedShuffle = true;
     this.shuffleCount++;
+    this.comboCount = 0;
+    this.clearBonusTimeouts();
     const shuffleSeed = this.levelDef.seed + this.shuffleCount * 1009 + Math.floor( performance.now() );
 
     feedback.playShuffle();
@@ -403,6 +515,8 @@ class ArrowGameApp {
     this.usedHint = false;
     this.isCompleted = false;
     this.isPaused = false;
+    this.comboCount = 0;
+    this.clearBonusTimeouts();
 
     this.arrows = cloneArrows(this.restartBaseArrows);
     this.boardView.updateArrows(this.arrows, true);
@@ -523,7 +637,8 @@ class ArrowGameApp {
 
   updateHUD() {
     if (this.elLevelTitle) {
-      this.elLevelTitle.textContent = `关卡 ${this.levelDef.id}`;
+      const letterBadge = this.levelDef.letter ? ` · ${this.levelDef.letter}` : '';
+      this.elLevelTitle.textContent = `关卡 ${this.levelDef.id}${letterBadge}`;
     }
     this.updateTimerDOM();
 
@@ -531,6 +646,14 @@ class ArrowGameApp {
     const rem = this.arrows.filter(a => !a.removed).length;
     if (this.elRemainBadge) {
       this.elRemainBadge.textContent = `${rem} / ${total}`;
+    }
+    if (this.elComboBadge) {
+      const mod7 = this.comboCount % 7;
+      const prog = this.comboCount > 0 && mod7 === 0 ? 7 : mod7;
+      this.elComboBadge.textContent = `🌈 ${prog}/7`;
+      this.elComboBadge.title = `当前连击: ${this.comboCount}（每满 7 连击生成一条彩虹箭头）`;
+      this.elComboBadge.classList.toggle('combo-active', this.comboCount > 0);
+      this.elComboBadge.classList.toggle('combo-rainbow', this.comboCount > 0 && mod7 === 0);
     }
 
     if (this.elLiveStarShuffle) {
@@ -707,13 +830,17 @@ class ArrowGameApp {
     const totalLevels = LEVEL_DEFINITIONS.length;
     const maxStars = totalLevels * 3;
     const curStars = this.getTotalStars();
-    const finishedLevels = Object.values(this.saveData.levelRecords).filter(r => r.finished).length;
-    const threeStarLevels = Object.values(this.saveData.levelRecords).filter(r => r.stars === 3).length;
+    const finishedLevels = LEVEL_DEFINITIONS.filter(
+      l => this.saveData.levelRecords[l.id]?.finished
+    ).length;
+    const threeStarLevels = LEVEL_DEFINITIONS.filter(
+      l => this.saveData.levelRecords[l.id]?.stars === 3
+    ).length;
 
     const goals = [
       {
         title: '初露锋芒',
-        desc: '完成任意 1 个关卡',
+        desc: '完成任意 1 个英文字母关卡',
         done: finishedLevels >= 1,
       },
       {
@@ -722,18 +849,18 @@ class ArrowGameApp {
         done: threeStarLevels >= 1,
       },
       {
+        title: '经典 B 字降服者',
+        desc: '通关第 2 关（字母 B · 经典双环迷阵）',
+        done: Boolean(this.saveData.levelRecords[2]?.finished),
+      },
+      {
         title: '渐入佳境',
-        desc: '累计点亮 15 颗星星',
-        done: curStars >= 15,
+        desc: '累计点亮 30 颗星星',
+        done: curStars >= 30,
       },
       {
-        title: '灵蛇降服者',
-        desc: '通关经典第 17 关（灵蛇盘踞）',
-        done: Boolean(this.saveData.levelRecords[17]?.finished),
-      },
-      {
-        title: '神箭大宗师',
-        desc: `通关全部 ${totalLevels} 个关卡 (${finishedLevels}/${totalLevels})`,
+        title: '全字母制霸 (A-Z)',
+        desc: `通关全部 ${totalLevels} 个英文字母关卡 (${finishedLevels}/${totalLevels})`,
         done: finishedLevels >= totalLevels,
       },
       {

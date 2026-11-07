@@ -1,17 +1,35 @@
 /**
  * High-DPI Canvas Renderer & Multi-Touch Zoom/Pan Controller for 《一箭又一箭》
- * Features:
- * - Deep slate night mode (#2b3244) & crisp day mode with equal-spaced grid dots
- * - True snake-slithering trajectory interpolation along all body bends
- * - Blocked arrow damped harmonic shake animation (keeps original color, never turns red)
- * - Hint glowing pulse animation
- * - Pinch-to-zoom, pan, and bottom zoom slider synchronization
+ * Mobile-GPU Optimized Edition:
+ * - Zero `shadowBlur` offscreen texture allocations (uses hardware-accelerated vector halo & depth strokes)
+ * - Cached `Path2D` for the 1,216 background grid dots (1 draw call instead of 1,216 `arc` calls/frame)
+ * - Pre-simplified corner vertices (`_cornerCells`) with zero per-frame array allocations for stationary arrows
+ * - On-demand smart render loop (0% GPU/CPU usage when board is idle while player is thinking)
  */
+
+function simplifyCellsToCorners(cells) {
+  if (!cells || cells.length <= 2) return cells;
+  const corners = [cells[0]];
+  for (let i = 1; i < cells.length - 1; i++) {
+    const prev = cells[i - 1];
+    const cur = cells[i];
+    const next = cells[i + 1];
+    const dr1 = cur.r - prev.r;
+    const dc1 = cur.c - prev.c;
+    const dr2 = next.r - cur.r;
+    const dc2 = next.c - cur.c;
+    if (dr1 !== dr2 || dc1 !== dc2) {
+      corners.push(cur);
+    }
+  }
+  corners.push(cells[cells.length - 1]);
+  return corners;
+}
 
 export class BoardCanvasView {
   constructor(canvas, { onArrowTap, onZoomChange }) {
     this.canvas = canvas;
-    this.ctx = canvas.getContext('2d');
+    this.ctx = canvas.getContext('2d', { alpha: false });
     this.onArrowTap = onArrowTap;
     this.onZoomChange = onZoomChange;
 
@@ -25,11 +43,8 @@ export class BoardCanvasView {
     this.theme = 'dark'; // 'dark' | 'light'
 
     // Active animations
-    // slitheringArrows: Map<arrowId, { arrow, progressSteps, speedStepsPerSec }>
     this.slitheringArrows = new Map();
-    // shakingArrows: Map<arrowId, { startTime, duration, dir, freeSteps, blockerCell }>
     this.shakingArrows = new Map();
-    // shuffleTransition: { startTime, duration }
     this.shuffleTransition = null;
 
     // Viewport & Zoom/Pan transform
@@ -41,6 +56,7 @@ export class BoardCanvasView {
     this.baseCellSize = 24;
     this.boardOriginX = 0;
     this.boardOriginY = 0;
+    this.dotsPath = null;
 
     // Pointer / Touch tracking for Pinch-to-Zoom & Pan vs Tap
     this.activePointers = new Map();
@@ -54,6 +70,7 @@ export class BoardCanvasView {
     this.initialPinchCenter = { x: 0, y: 0 };
     this.totalPointerMove = 0;
 
+    this.needsRender = true;
     this.rafId = null;
     this.lastFrameTime = performance.now();
 
@@ -62,26 +79,36 @@ export class BoardCanvasView {
     this.startLoop();
   }
 
+  prepareArrowsCache(arrows) {
+    for (const arrow of arrows) {
+      arrow._cornerCells = simplifyCellsToCorners(arrow.cells);
+    }
+  }
+
   setBoard({ rows, cols, mask, arrows }) {
     this.rows = rows;
     this.cols = cols;
     this.mask = mask;
     this.arrows = arrows;
+    this.prepareArrowsCache(arrows);
     this.hintArrowId = null;
     this.slitheringArrows.clear();
     this.shakingArrows.clear();
     this.resetCamera();
     this.triggerShuffleWave();
+    this.needsRender = true;
   }
 
   updateArrows(arrows, animateWave = false) {
     this.arrows = arrows;
+    this.prepareArrowsCache(arrows);
     this.hintArrowId = null;
     this.slitheringArrows.clear();
     this.shakingArrows.clear();
     if (animateWave) {
       this.triggerShuffleWave();
     }
+    this.needsRender = true;
   }
 
   triggerShuffleWave() {
@@ -89,18 +116,22 @@ export class BoardCanvasView {
       startTime: performance.now(),
       duration: 360,
     };
+    this.needsRender = true;
   }
 
   setTheme(theme) {
     this.theme = theme;
+    this.needsRender = true;
   }
 
   setGuideLines(enabled) {
     this.showGuideLines = enabled;
+    this.needsRender = true;
   }
 
   setHintArrow(arrowId) {
     this.hintArrowId = arrowId;
+    this.needsRender = true;
   }
 
   resetCamera() {
@@ -108,6 +139,7 @@ export class BoardCanvasView {
     this.panX = 0;
     this.panY = 0;
     this.computeLayout();
+    this.needsRender = true;
     if (this.onZoomChange) this.onZoomChange(this.zoom);
   }
 
@@ -117,7 +149,6 @@ export class BoardCanvasView {
     const cx = anchorScreenX !== null ? anchorScreenX : rect.width / 2;
     const cy = anchorScreenY !== null ? anchorScreenY : rect.height / 2;
 
-    // Keep the point under (cx, cy) stationary during zoom
     const worldX = (cx - rect.width / 2 - this.panX) / this.zoom;
     const worldY = (cy - rect.height / 2 - this.panY) / this.zoom;
 
@@ -125,6 +156,7 @@ export class BoardCanvasView {
     this.panX = cx - rect.width / 2 - worldX * this.zoom;
     this.panY = cy - rect.height / 2 - worldY * this.zoom;
     this.clampPan();
+    this.needsRender = true;
 
     if (this.onZoomChange) this.onZoomChange(this.zoom);
   }
@@ -138,13 +170,15 @@ export class BoardCanvasView {
 
   resize() {
     const rect = this.canvas.parentElement.getBoundingClientRect();
-    const dpr = Math.min(window.devicePixelRatio || 1, 3);
+    // Cap DPR at 2.0 on mobile to prevent 3x/3.5x QHD fill-rate bottleneck on mobile browsers
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
     this.canvas.width = Math.max(1, Math.floor(rect.width * dpr));
     this.canvas.height = Math.max(1, Math.floor(rect.height * dpr));
     this.canvas.style.width = `${rect.width}px`;
     this.canvas.style.height = `${rect.height}px`;
     this.dpr = dpr;
     this.computeLayout();
+    this.needsRender = true;
   }
 
   computeLayout() {
@@ -160,6 +194,23 @@ export class BoardCanvasView {
     const boardH = this.rows * this.baseCellSize;
     this.boardOriginX = -boardW / 2;
     this.boardOriginY = -boardH / 2;
+
+    // Pre-build a single cached Path2D for all grid dots so render() does 1 fill() instead of 1,216 arc() calls!
+    const dotRadius = Math.max(1.3, this.baseCellSize * 0.068);
+    if (typeof Path2D !== 'undefined') {
+      const p = new Path2D();
+      for (let r = 0; r < this.rows; r++) {
+        const y = this.boardOriginY + (r + 0.5) * this.baseCellSize;
+        for (let c = 0; c < this.cols; c++) {
+          const x = this.boardOriginX + (c + 0.5) * this.baseCellSize;
+          p.moveTo(x + dotRadius, y);
+          p.arc(x, y, dotRadius, 0, Math.PI * 2);
+        }
+      }
+      this.dotsPath = p;
+    } else {
+      this.dotsPath = null;
+    }
   }
 
   /**
@@ -178,6 +229,7 @@ export class BoardCanvasView {
       speedStepsPerSec: speed,
       onComplete,
     });
+    this.needsRender = true;
   }
 
   /**
@@ -191,11 +243,9 @@ export class BoardCanvasView {
       freeSteps: checkResult.distanceToBlocker || 0,
       blockerCell: checkResult.blockerCell || null,
     });
+    this.needsRender = true;
   }
 
-  /**
-   * Convert screen (clientX, clientY) to board grid coordinates { r, c, distFromCenter }
-   */
   screenToGrid(clientX, clientY) {
     const rect = this.canvas.getBoundingClientRect();
     const sx = clientX - rect.left;
@@ -218,23 +268,18 @@ export class BoardCanvasView {
     };
   }
 
-  /**
-   * Find the arrow closest to the tapped grid position
-   */
   findArrowAtScreenPos(clientX, clientY) {
     const { rFloat, cFloat } = this.screenToGrid(clientX, clientY);
 
     let bestArrow = null;
-    let bestDist = 0.72; // Generous touch radius in grid units
+    let bestDist = 0.72;
 
     for (const arrow of this.arrows) {
       if (arrow.removed || this.slitheringArrows.has(arrow.id)) continue;
 
-      // Check distance to every segment of the arrow polyline
       const cells = arrow.cells;
       for (let i = 0; i < cells.length; i++) {
         const dPoint = Math.hypot(rFloat - cells[i].r, cFloat - cells[i].c);
-        // Slightly prioritize arrowhead taps when fingers are close
         const headBonus = i === cells.length - 1 ? 0.92 : 1.0;
         if (dPoint * headBonus < bestDist) {
           bestDist = dPoint * headBonus;
@@ -310,6 +355,7 @@ export class BoardCanvasView {
         this.panX = this.initialPanX + (e.clientX - this.dragStartX);
         this.panY = this.initialPanY + (e.clientY - this.dragStartY);
         this.clampPan();
+        this.needsRender = true;
       } else if (this.activePointers.size === 2) {
         const pts = Array.from(this.activePointers.values());
         const dist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
@@ -337,7 +383,6 @@ export class BoardCanvasView {
         }
         this.isDragging = false;
       } else if (this.activePointers.size === 1) {
-        // Transition smoothly from 2-finger pinch back to 1-finger pan
         const remaining = Array.from(this.activePointers.values())[0];
         this.dragStartX = remaining.x;
         this.dragStartY = remaining.y;
@@ -349,7 +394,6 @@ export class BoardCanvasView {
     this.canvas.addEventListener('pointerup', handlePointerUp);
     this.canvas.addEventListener('pointercancel', handlePointerUp);
 
-    // Desktop mouse wheel zoom support
     this.canvas.addEventListener(
       'wheel',
       e => {
@@ -362,31 +406,56 @@ export class BoardCanvasView {
     );
   }
 
+  hasAnimatedArrowState() {
+    if (
+      this.slitheringArrows.size > 0 ||
+      this.shakingArrows.size > 0 ||
+      this.shuffleTransition !== null ||
+      this.hintArrowId !== null
+    ) {
+      return true;
+    }
+    for (let i = 0; i < this.arrows.length; i++) {
+      const a = this.arrows[i];
+      if (!a.removed && (a.isRainbow || a.isBonusRed)) return true;
+    }
+    return false;
+  }
+
   startLoop() {
     const tick = now => {
       const dt = Math.min(0.05, (now - this.lastFrameTime) / 1000);
       this.lastFrameTime = now;
-      this.updateAnimations(dt, now);
-      this.render(now);
+
+      const isAnimating = this.hasAnimatedArrowState();
+      if (isAnimating) {
+        this.updateAnimations(dt, now);
+      }
+
+      if (this.needsRender || isAnimating) {
+        this.render(now);
+        this.needsRender = this.hasAnimatedArrowState();
+      }
+
       this.rafId = requestAnimationFrame(tick);
     };
     this.rafId = requestAnimationFrame(tick);
   }
 
   updateAnimations(dt, now) {
-    // Update slithering arrows
     for (const [id, state] of this.slitheringArrows.entries()) {
       state.progressSteps += state.speedStepsPerSec * dt;
       if (state.progressSteps >= state.maxSteps) {
         this.slitheringArrows.delete(id);
+        this.needsRender = true;
         if (state.onComplete) state.onComplete(state.arrow);
       }
     }
 
-    // Expire finished shake animations
     for (const [id, shake] of this.shakingArrows.entries()) {
       if (now - shake.startTime >= shake.duration) {
         this.shakingArrows.delete(id);
+        this.needsRender = true;
       }
     }
 
@@ -395,6 +464,7 @@ export class BoardCanvasView {
       now - this.shuffleTransition.startTime >= this.shuffleTransition.duration
     ) {
       this.shuffleTransition = null;
+      this.needsRender = true;
     }
   }
 
@@ -403,18 +473,18 @@ export class BoardCanvasView {
    * as it slithers forward by `progressSteps` along its own body and exit ray.
    */
   getSlitheredGridPoints(arrow, progressSteps = 0) {
-    const baseCells = arrow.cells;
-    const L = baseCells.length;
     if (progressSteps <= 0) {
       return {
-        points: baseCells.map(c => ({ r: c.r, c: c.c })),
+        points: arrow._cornerCells || arrow.cells,
         dir: arrow.dir,
       };
     }
 
-    // Build extended trajectory: tail -> ... -> head -> ray steps
+    const baseCells = arrow.cells;
+    const L = baseCells.length;
+
     const totalNeeded = Math.ceil(progressSteps) + L + 2;
-    const path = baseCells.map(c => ({ r: c.r, c: c.c }));
+    const path = baseCells.slice();
     const head = baseCells[L - 1];
     const { dr, dc } = arrow.dir;
     for (let k = 1; k <= totalNeeded; k++) {
@@ -425,32 +495,29 @@ export class BoardCanvasView {
     const frac = progressSteps - iTail;
     const iHead = iTail + L - 1;
 
-    const points = [];
-    // Interpolated tail position
+    const rawPoints = [];
     const pTail0 = path[iTail];
     const pTail1 = path[iTail + 1];
-    points.push({
+    rawPoints.push({
       r: pTail0.r + (pTail1.r - pTail0.r) * frac,
       c: pTail0.c + (pTail1.c - pTail0.c) * frac,
     });
 
-    // Intermediate corners along the snake body
     for (let idx = iTail + 1; idx <= iHead; idx++) {
-      points.push(path[idx]);
+      rawPoints.push(path[idx]);
     }
 
-    // Interpolated head position
     if (frac > 0.0001) {
       const pHead0 = path[iHead];
       const pHead1 = path[iHead + 1];
-      points.push({
+      rawPoints.push({
         r: pHead0.r + (pHead1.r - pHead0.r) * frac,
         c: pHead0.c + (pHead1.c - pHead0.c) * frac,
       });
     }
 
     return {
-      points,
+      points: simplifyCellsToCorners(rawPoints),
       dir: arrow.dir,
     };
   }
@@ -482,42 +549,46 @@ export class BoardCanvasView {
 
     const cs = this.baseCellSize;
 
-    // 3. Draw equal-spaced subtle dots across the board grid (Screenshot 1 & 2 style)
-    const dotRadius = Math.max(1.3, cs * 0.068);
+    // 3. Draw equal-spaced subtle dots across the board grid using cached Path2D (1 native call!)
     ctx.fillStyle = isDark ? 'rgba(138, 153, 189, 0.34)' : 'rgba(110, 126, 160, 0.36)';
-    ctx.beginPath();
-    for (let r = 0; r < this.rows; r++) {
-      for (let c = 0; c < this.cols; c++) {
-        // Draw dots across the entire puzzle grid bounding area so cleared spaces & margins show the dot matrix
-        const { x, y } = this.gridToWorld(r, c);
-        ctx.moveTo(x + dotRadius, y);
-        ctx.arc(x, y, dotRadius, 0, Math.PI * 2);
+    if (this.dotsPath) {
+      ctx.fill(this.dotsPath);
+    } else {
+      const dotRadius = Math.max(1.3, cs * 0.068);
+      ctx.beginPath();
+      for (let r = 0; r < this.rows; r++) {
+        for (let c = 0; c < this.cols; c++) {
+          const { x, y } = this.gridToWorld(r, c);
+          ctx.moveTo(x + dotRadius, y);
+          ctx.arc(x, y, dotRadius, 0, Math.PI * 2);
+        }
       }
+      ctx.fill();
     }
-    ctx.fill();
 
-    // 4. Optional Guide Lines (辅助线 button at bottom right of Screenshot 1 & 2)
+    // 4. Optional Guide Lines
     if (this.showGuideLines) {
       ctx.save();
       ctx.strokeStyle = isDark ? 'rgba(255, 255, 255, 0.14)' : 'rgba(43, 50, 68, 0.14)';
       ctx.lineWidth = Math.max(1, cs * 0.045);
       ctx.setLineDash([cs * 0.16, cs * 0.16]);
+      ctx.beginPath();
       for (const arrow of this.arrows) {
         if (arrow.removed || this.slitheringArrows.has(arrow.id)) continue;
         const headW = this.gridToWorld(arrow.head.r, arrow.head.c);
         const endR = arrow.head.r + arrow.dir.dr * Math.max(this.rows, this.cols);
         const endC = arrow.head.c + arrow.dir.dc * Math.max(this.rows, this.cols);
         const endW = this.gridToWorld(endR, endC);
-        ctx.beginPath();
         ctx.moveTo(headW.x, headW.y);
         ctx.lineTo(endW.x, endW.y);
-        ctx.stroke();
       }
+      ctx.stroke();
       ctx.restore();
     }
 
     // 5. Draw all active & slithering arrows
-    for (const arrow of this.arrows) {
+    for (let i = 0; i < this.arrows.length; i++) {
+      const arrow = this.arrows[i];
       if (arrow.removed && !this.slitheringArrows.has(arrow.id)) continue;
       this.drawSingleArrow(ctx, arrow, cs, now);
     }
@@ -532,7 +603,6 @@ export class BoardCanvasView {
 
     let progressSteps = slitherState ? slitherState.progressSteps : 0;
 
-    // Shake displacement (Rule 2: never turns red, vibrates & shakes visually in original color!)
     let shakeOffsetX = 0;
     let shakeOffsetY = 0;
     if (shakeState) {
@@ -540,7 +610,6 @@ export class BoardCanvasView {
       const progress = Math.min(1, (now - shakeState.startTime) / shakeState.duration);
       const damping = Math.pow(1 - progress, 1.8);
 
-      // Lunge slightly toward the obstacle if there is free space, plus rapid orthogonal + axial jitter
       const lungeBounce = Math.sin(progress * Math.PI) * Math.min(0.28, shakeState.freeSteps * 0.18);
       progressSteps += lungeBounce;
 
@@ -550,7 +619,6 @@ export class BoardCanvasView {
       shakeOffsetY = shakeState.dir.dr * wave + shakeState.dir.dc * crossWave;
     }
 
-    // Shuffle wave scale-in animation
     let scaleAlpha = 1.0;
     if (this.shuffleTransition) {
       const t = Math.min(
@@ -563,65 +631,107 @@ export class BoardCanvasView {
     const { points, dir } = this.getSlitheredGridPoints(arrow, progressSteps);
     if (points.length < 2) return;
 
-    const worldPts = points.map(p => {
-      const w = this.gridToWorld(p.r, p.c);
-      return { x: w.x + shakeOffsetX, y: w.y + shakeOffsetY };
-    });
+    const worldPts = new Array(points.length);
+    for (let i = 0; i < points.length; i++) {
+      const p = points[i];
+      worldPts[i] = {
+        x: this.boardOriginX + (p.c + 0.5) * cs + shakeOffsetX,
+        y: this.boardOriginY + (p.r + 0.5) * cs + shakeOffsetY,
+      };
+    }
 
-    // Shorten the very last segment slightly so the line tucks cleanly into the arrowhead base
-    const headPt = { ...worldPts[worldPts.length - 1] };
+    const lastIdx = worldPts.length - 1;
+    const headPtX = worldPts[lastIdx].x;
+    const headPtY = worldPts[lastIdx].y;
     const lineEndOffset = cs * 0.06;
-    worldPts[worldPts.length - 1] = {
-      x: headPt.x - dir.dc * lineEndOffset,
-      y: headPt.y - dir.dr * lineEndOffset,
+    worldPts[lastIdx] = {
+      x: headPtX - dir.dc * lineEndOffset,
+      y: headPtY - dir.dr * lineEndOffset,
     };
 
     ctx.save();
-    ctx.globalAlpha = scaleAlpha;
+    if (scaleAlpha < 0.999) {
+      ctx.globalAlpha = scaleAlpha;
+    }
 
     const strokeWidth = Math.max(1.5, cs * 0.23);
     const cornerRadius = cs * 0.14;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
 
-    // Hint glow aura
+    // Hardware-accelerated vector halo for Hint (no slow Gaussian shadowBlur!)
     if (isHinted) {
       const pulse = 0.5 + 0.5 * Math.sin(now * 0.009);
+      ctx.strokeStyle = `rgba(255, 255, 255, ${0.32 + pulse * 0.28})`;
+      ctx.lineWidth = strokeWidth * (1.85 + pulse * 0.45);
+      this.traceRoundedPolyline(ctx, worldPts, cornerRadius);
+      ctx.stroke();
+    }
+
+    let activePaint = arrow.color;
+    if (arrow.isBonusRed) {
+      activePaint = '#ff2e4c';
+      const redPulse = 0.5 + 0.5 * Math.sin(now * 0.022);
+      ctx.strokeStyle = `rgba(255, 46, 76, ${0.34 + redPulse * 0.32})`;
+      ctx.lineWidth = strokeWidth * (1.9 + redPulse * 0.45);
+      this.traceRoundedPolyline(ctx, worldPts, cornerRadius);
+      ctx.stroke();
+    } else if (arrow.isRainbow) {
+      let minX = Infinity;
+      let minY = Infinity;
+      let maxX = -Infinity;
+      let maxY = -Infinity;
+      for (let i = 0; i < worldPts.length; i++) {
+        const p = worldPts[i];
+        if (p.x < minX) minX = p.x;
+        if (p.y < minY) minY = p.y;
+        if (p.x > maxX) maxX = p.x;
+        if (p.y > maxY) maxY = p.y;
+      }
+      const span = Math.max(cs * 2.5, Math.hypot(maxX - minX, maxY - minY));
+      const angle = (now * 0.0018) % (Math.PI * 2);
+      const cx = (minX + maxX) / 2;
+      const cy = (minY + maxY) / 2;
+      const gx0 = cx - Math.cos(angle) * span * 0.65;
+      const gy0 = cy - Math.sin(angle) * span * 0.65;
+      const gx1 = cx + Math.cos(angle) * span * 0.65;
+      const gy1 = cy + Math.sin(angle) * span * 0.65;
+
+      const grad = ctx.createLinearGradient(gx0, gy0, gx1, gy1);
+      const hueShift = (now * 0.14) % 360;
+      const stops = [0, 0.17, 0.33, 0.5, 0.67, 0.83, 1.0];
+      for (let s = 0; s < stops.length; s++) {
+        const h = (hueShift + s * 52) % 360;
+        grad.addColorStop(stops[s], `hsl(${h}, 95%, 64%)`);
+      }
+      activePaint = grad;
+
+      // Vector rainbow outer glow (zero shadowBlur!)
       ctx.save();
-      ctx.shadowColor = '#ffffff';
-      ctx.shadowBlur = cs * (0.55 + pulse * 0.45);
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = strokeWidth * (1.45 + pulse * 0.35);
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
+      ctx.globalAlpha = scaleAlpha * 0.32;
+      ctx.strokeStyle = grad;
+      ctx.lineWidth = strokeWidth * 1.75;
       this.traceRoundedPolyline(ctx, worldPts, cornerRadius);
       ctx.stroke();
       ctx.restore();
     }
 
-    // Subtle drop shadow for crisp depth on dark slate background
-    ctx.save();
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.28)';
-    ctx.shadowBlur = cs * 0.12;
-    ctx.shadowOffsetY = cs * 0.05;
-
-    // Main arrow body stroke (always keeps arrow.color, never turns red on error!)
-    ctx.strokeStyle = arrow.color;
+    // Main arrow body stroke
+    ctx.strokeStyle = activePaint;
     ctx.lineWidth = strokeWidth;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
     this.traceRoundedPolyline(ctx, worldPts, cornerRadius);
     ctx.stroke();
 
-    // Draw crisp triangular arrowhead at `headPt` pointing in `dir`
+    // Draw crisp triangular arrowhead at (headPtX, headPtY) pointing in `dir`
     const tipLength = cs * 0.32;
     const backLength = cs * 0.16;
     const halfWing = cs * 0.24;
 
-    const tipX = headPt.x + dir.dc * tipLength;
-    const tipY = headPt.y + dir.dr * tipLength;
-    const baseCenterX = headPt.x - dir.dc * backLength;
-    const baseCenterY = headPt.y - dir.dr * backLength;
+    const tipX = headPtX + dir.dc * tipLength;
+    const tipY = headPtY + dir.dr * tipLength;
+    const baseCenterX = headPtX - dir.dc * backLength;
+    const baseCenterY = headPtY - dir.dr * backLength;
 
-    // Perpendicular vector (-dir.dr, dir.dc)
     const perpX = -dir.dr;
     const perpY = dir.dc;
 
@@ -630,7 +740,7 @@ export class BoardCanvasView {
     const rightX = baseCenterX - perpX * halfWing;
     const rightY = baseCenterY - perpY * halfWing;
 
-    ctx.fillStyle = arrow.color;
+    ctx.fillStyle = activePaint;
     ctx.beginPath();
     ctx.moveTo(tipX, tipY);
     ctx.lineTo(leftX, leftY);
@@ -638,17 +748,14 @@ export class BoardCanvasView {
     ctx.closePath();
     ctx.fill();
     ctx.lineWidth = Math.max(1.2, cs * 0.06);
-    ctx.strokeStyle = arrow.color;
+    ctx.strokeStyle = activePaint;
     ctx.stroke();
-    ctx.restore();
 
     // If hinted, draw a subtle white inner highlight core
     if (isHinted) {
       const pulse = 0.5 + 0.5 * Math.sin(now * 0.009);
       ctx.strokeStyle = `rgba(255, 255, 255, ${0.45 + pulse * 0.45})`;
       ctx.lineWidth = strokeWidth * 0.42;
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
       this.traceRoundedPolyline(ctx, worldPts, cornerRadius);
       ctx.stroke();
     }
@@ -656,9 +763,6 @@ export class BoardCanvasView {
     ctx.restore();
   }
 
-  /**
-   * Trace a polyline with smooth rounded 90-degree corners matching Screenshot 2
-   */
   traceRoundedPolyline(ctx, pts, radius) {
     ctx.beginPath();
     ctx.moveTo(pts[0].x, pts[0].y);
